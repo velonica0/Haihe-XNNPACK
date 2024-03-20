@@ -380,7 +380,7 @@ void xnn_qu8_vmulc_minmax_fp32_ukernel__rvv_u2v(
   } while (batch != 0);
 }
 
-void xnn_f32_vmax_ukernel__ rvv_u1v(
+void xnn_f32_vmax_ukernel__rvv_u1v(
     size_t batch,
     const float* input_a,
     const float* input_b,
