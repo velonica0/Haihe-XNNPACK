@@ -556,10 +556,17 @@ static void init_f32_vmax_config(void) {
     f32_vmax_config.minmax.ropc_ukernel = (xnn_vbinary_ukernel_fn) xnn_f32_vmaxc_ukernel__wasm_u8;
     f32_vmax_config.minmax.element_tile = 8;
   #elif XNN_ARCH_RISCV
-    f32_vmax_config.minmax.op_ukernel = (xnn_vbinary_ukernel_fn) xnn_f32_vmax_ukernel__scalar_u8;
-    f32_vmax_config.minmax.opc_ukernel = (xnn_vbinary_ukernel_fn) xnn_f32_vmaxc_ukernel__scalar_u8;
-    f32_vmax_config.minmax.ropc_ukernel = (xnn_vbinary_ukernel_fn) xnn_f32_vmaxc_ukernel__scalar_u8;
-    f32_vmax_config.minmax.element_tile = 8;
+    #if XNN_ENABLE_RISCV_VECTOR
+        f32_vmax_config.minmax.op_ukernel = (xnn_vbinary_ukernel_fn) xnn_f32_vmax_ukernel__rvv_u1v;
+        f32_vmax_config.minmax.opc_ukernel = (xnn_vbinary_ukernel_fn) xnn_f32_vmaxc_ukernel__rvv_u1v;
+        f32_vmax_config.minmax.ropc_ukernel = (xnn_vbinary_ukernel_fn) xnn_f32_vmaxc_ukernel__rvv_u1v;
+        f32_vmax_config.minmax.element_tile = 8;
+    #else
+        f32_vmax_config.minmax.op_ukernel = (xnn_vbinary_ukernel_fn) xnn_f32_vmax_ukernel__scalar_u8;
+        f32_vmax_config.minmax.opc_ukernel = (xnn_vbinary_ukernel_fn) xnn_f32_vmaxc_ukernel__scalar_u8;
+        f32_vmax_config.minmax.ropc_ukernel = (xnn_vbinary_ukernel_fn) xnn_f32_vmaxc_ukernel__scalar_u8;
+        f32_vmax_config.minmax.element_tile = 8;
+    #endif
   #elif XNN_ARCH_PPC64
     f32_vmax_config.minmax.op_ukernel = (xnn_vbinary_ukernel_fn) xnn_f32_vmax_ukernel__scalar_u8;
     f32_vmax_config.minmax.opc_ukernel = (xnn_vbinary_ukernel_fn) xnn_f32_vmaxc_ukernel__scalar_u8;
@@ -630,10 +637,17 @@ static void init_f32_vmin_config(void) {
     f32_vmin_config.minmax.ropc_ukernel = (xnn_vbinary_ukernel_fn) xnn_f32_vminc_ukernel__wasm_u8;
     f32_vmin_config.minmax.element_tile = 8;
   #elif XNN_ARCH_RISCV
-    f32_vmin_config.minmax.op_ukernel = (xnn_vbinary_ukernel_fn) xnn_f32_vmin_ukernel__scalar_u8;
-    f32_vmin_config.minmax.opc_ukernel = (xnn_vbinary_ukernel_fn) xnn_f32_vminc_ukernel__scalar_u8;
-    f32_vmin_config.minmax.ropc_ukernel = (xnn_vbinary_ukernel_fn) xnn_f32_vminc_ukernel__scalar_u8;
-    f32_vmin_config.minmax.element_tile = 8;
+    #if XNN_ENABLE_RISCV_VECTOR
+        f32_vmin_config.minmax.op_ukernel = (xnn_vbinary_ukernel_fn) xnn_f32_vmin_ukernel__rvv_u1v;
+        f32_vmin_config.minmax.opc_ukernel = (xnn_vbinary_ukernel_fn) xnn_f32_vminc_ukernel__rvv_u1v;
+        f32_vmin_config.minmax.ropc_ukernel = (xnn_vbinary_ukernel_fn) xnn_f32_vminc_ukernel__rvv_u1v;
+        f32_vmin_config.minmax.element_tile = 8;
+    #else
+        f32_vmin_config.minmax.op_ukernel = (xnn_vbinary_ukernel_fn) xnn_f32_vmin_ukernel__scalar_u8;
+        f32_vmin_config.minmax.opc_ukernel = (xnn_vbinary_ukernel_fn) xnn_f32_vminc_ukernel__scalar_u8;
+        f32_vmin_config.minmax.ropc_ukernel = (xnn_vbinary_ukernel_fn) xnn_f32_vminc_ukernel__scalar_u8;
+        f32_vmin_config.minmax.element_tile = 8;
+    #endif
   #elif XNN_ARCH_PPC64
     f32_vmin_config.minmax.op_ukernel = (xnn_vbinary_ukernel_fn) xnn_f32_vmin_ukernel__scalar_u8;
     f32_vmin_config.minmax.opc_ukernel = (xnn_vbinary_ukernel_fn) xnn_f32_vminc_ukernel__scalar_u8;

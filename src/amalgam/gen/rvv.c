@@ -379,3 +379,110 @@ void xnn_qu8_vmulc_minmax_fp32_ukernel__rvv_u2v(
     batch -= n;
   } while (batch != 0);
 }
+
+void xnn_f32_vmax_ukernel__rvv_u1v(
+    size_t batch,
+    const float* input_a,
+    const float* input_b,
+    float* output,
+    const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+  assert(batch != 0);
+  assert(batch % sizeof(float) == 0);
+  assert(input_a != NULL);
+  assert(input_b != NULL);
+  assert(output != NULL);
+
+  while (batch > 0) {
+      size_t vl = vsetvl_e32m1(batch);       // 设置向量寄存器每次操作的元素个数
+      vfloat32m1_t va = vle32_v_f32m1(input_a, vl); // 从数组a中加载vl个元素到向量寄存器va中
+      vfloat32m1_t vb = vle32_v_f32m1(input_b, vl); // 从数组b中加载vl个元素到向量寄存器vb中
+      vfloat32m1_t vc = vfmax_vv_f32m1(va, vb, vl);   // 向量寄存器va和向量寄存器vb中vl个元素对应取max，结果为vc
+      vse32_v_f32m1(output, vc, vl);   // 将向量寄存器中的vl个元素存到数组output中
+
+      input_a += vl;
+      input_b += vl;
+      output += vl;
+      batch -= vl;
+  }
+}
+
+void xnn_f32_vmaxc_ukernel__rvv_u1v(
+    size_t batch,
+    const float* input_a,
+    const float* input_b,
+    float* output,
+    const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+  assert(batch != 0);
+  assert(batch % sizeof(float) == 0);
+  assert(input_a != NULL);
+  assert(input_b != NULL);
+  assert(output != NULL);
+
+  const float vb = *input_b;
+
+  while (batch > 0) {
+      size_t vl = vsetvl_e32m1(batch);       // 设置向量寄存器每次操作的元素个数
+      vfloat32m1_t va = vle32_v_f32m1(input_a, vl); // 从数组a中加载vl个元素到向量寄存器va中
+      vfloat32m1_t vc = vfmax_vf_f32m1(va, vb, vl);   // 向量寄存器va中vl个元素和常量vb对应对应取max，结果为vc
+      vse32_v_f32m1(output, vc, vl);   // 将向量寄存器中的vl个元素存到数组output中
+
+      input_a += vl;
+      output += vl;
+      batch -= vl;
+  }
+}
+
+void xnn_f32_vmin_ukernel__rvv_u1v(
+    size_t batch,
+    const float* input_a,
+    const float* input_b,
+    float* output,
+    const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+  assert(batch != 0);
+  assert(batch % sizeof(float) == 0);
+  assert(input_a != NULL);
+  assert(input_b != NULL);
+  assert(output != NULL);
+  while (batch > 0) {
+      size_t vl = vsetvl_e32m1(batch);       // 设置向量寄存器每次操作的元素个数
+      vfloat32m1_t va = vle32_v_f32m1(input_a, vl); // 从数组a中加载vl个元素到向量寄存器va中
+      vfloat32m1_t vb = vle32_v_f32m1(input_b, vl); // 从数组b中加载vl个元素到向量寄存器vb中
+      vfloat32m1_t vc = vfmin_vv_f32m1(va, vb, vl);   // 向量寄存器va和向量寄存器vb中vl个元素对应取min，结果为vc
+      vse32_v_f32m1(output, vc, vl);   // 将向量寄存器中的vl个元素存到数组output中
+
+      input_a += vl;
+      input_b += vl;
+      output += vl;
+      batch -= vl;
+  }
+}
+
+void xnn_f32_vminc_ukernel__rvv_u1v(
+    size_t batch,
+    const float* input_a,
+    const float* input_b,
+    float* output,
+    const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+  assert(batch != 0);
+  assert(batch % sizeof(float) == 0);
+  assert(input_a != NULL);
+  assert(input_b != NULL);
+  assert(output != NULL);
+
+  const float vb = *input_b;
+
+  while (batch > 0) {
+      size_t vl = vsetvl_e32m1(batch);       // 设置向量寄存器每次操作的元素个数
+      vfloat32m1_t va = vle32_v_f32m1(input_a, vl); // 从数组a中加载vl个元素到向量寄存器va中
+      vfloat32m1_t vc = vfmin_vf_f32m1(va, vb, vl);   // 向量寄存器va中vl个元素和常量vb对应对应取min，结果为vc
+      vse32_v_f32m1(output, vc, vl);   // 将向量寄存器中的vl个元素存到数组output中
+
+      input_a += vl;
+      output += vl;
+      batch -= vl;
+  }
+}
