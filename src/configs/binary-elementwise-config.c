@@ -557,7 +557,7 @@ static void init_f32_vmax_config(void) {
     f32_vmax_config.minmax.element_tile = 8;
   #elif XNN_ARCH_RISCV
     #if XNN_ENABLE_RISCV_VECTOR
-        f32_vmax_config.minmax.op_ukernel = (xnn_vbinary_ukernel_fn) xnn_f32_vmax_ukernel__ rvv_u1v;
+        f32_vmax_config.minmax.op_ukernel = (xnn_vbinary_ukernel_fn) xnn_f32_vmax_ukernel__rvv_u1v;
         f32_vmax_config.minmax.opc_ukernel = (xnn_vbinary_ukernel_fn) xnn_f32_vmaxc_ukernel__rvv_u1v;
         f32_vmax_config.minmax.ropc_ukernel = (xnn_vbinary_ukernel_fn) xnn_f32_vmaxc_ukernel__rvv_u1v;
         f32_vmax_config.minmax.element_tile = 8;
