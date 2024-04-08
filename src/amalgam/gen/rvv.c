@@ -5,8 +5,10 @@
 
 #include <assert.h>
 #include <math.h>
+#include <time.h>
 
-#include <riscv_vector.h>
+//#include <riscv_vector.h>
+#include "riscv_v_071_fix.h"
 
 #include <xnnpack/common.h>
 #include <xnnpack/intrinsics-polyfill.h>
@@ -14,7 +16,6 @@
 #include <xnnpack/raddstoreexpminusmax.h>
 #include <xnnpack/vbinary.h>
 #include <xnnpack/vunary.h>
-
 
 static inline vfloat32m4_t eval_poly_horner(vfloat32m4_t x,
                                                   float c6, float c5,
@@ -137,8 +138,12 @@ void xnn_f32_raddstoreexpminusmax_ukernel__rvv_rr2_p6_u4v(
     vsum = __riscv_vfadd_vv_f32m4_tu(vsum, vsum, vexp, vl);
   } while(avl > 0);
 
-  vfloat32m1_t v0 = __riscv_vfmv_s_f_f32m1(0.0f, 1);
-  *sum = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m4_f32m1(vsum, v0, n));
+  //vfloat32m1_t v0 = __riscv_vfmv_s_f_f32m1(0.0f, 1);
+  //*sum = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m4_f32m1(vsum, v0, n));
+  vfloat32m1_t v0, v1;
+  v0 = vfmv_s_f_f32m1(v0, 0.0f, 1);
+  v1 = vfredosum_vs_f32m4_f32m1(v1, vsum, v0, n);
+  *sum = __riscv_vfmv_f_s_f32m1_f32(v1);
 }
 
 void xnn_f32_rmax_ukernel__rvv_u8v(
@@ -165,8 +170,12 @@ void xnn_f32_rmax_ukernel__rvv_u8v(
     t0 = __riscv_vfmax_vv_f32m8_tu(t0, t0, vec, vl);
   }
 
-  vfloat32m1_t fmax = __riscv_vfmv_s_f_f32m1(-INFINITY, 1);
-  output[0] = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredmax_vs_f32m8_f32m1(t0, fmax, N));
+  //vfloat32m1_t fmax = __riscv_vfmv_s_f_f32m1(-INFINITY, 1);
+  //output[0] = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredmax_vs_f32m8_f32m1(t0, fmax, N));
+  vfloat32m1_t fmax, v0;
+  fmax = vfmv_s_f_f32m1(fmax, -INFINITY, 1);
+  v0 = vfredmax_vs_f32m8_f32m1(v0, t0, fmax, N);
+  output[0] = __riscv_vfmv_f_s_f32m1_f32(v0);
 }
 
 void xnn_f32_rminmax_ukernel__rvv_u8v(
@@ -195,10 +204,17 @@ void xnn_f32_rminmax_ukernel__rvv_u8v(
     t1 = __riscv_vfmax_vv_f32m8_tu(t1, t1, vec, vl);
   }
 
-  vfloat32m1_t fmin = __riscv_vfmv_s_f_f32m1(INFINITY, 1);
-  vfloat32m1_t fmax = __riscv_vfmv_s_f_f32m1(-INFINITY, 1);
-  output[0] = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredmin_vs_f32m8_f32m1(t0, fmin, N));
-  output[1] = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredmax_vs_f32m8_f32m1(t1, fmax, N));
+  //vfloat32m1_t fmin = __riscv_vfmv_s_f_f32m1(INFINITY, 1);
+  //vfloat32m1_t fmax = __riscv_vfmv_s_f_f32m1(-INFINITY, 1);
+  //output[0] = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredmin_vs_f32m8_f32m1(t0, fmin, N));
+  //output[1] = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredmax_vs_f32m8_f32m1(t1, fmax, N));
+  vfloat32m1_t fmin, fmax, v0, v1;
+  fmin = vfmv_s_f_f32m1(fmin, INFINITY, 1);
+  fmax = vfmv_s_f_f32m1(fmax, -INFINITY, 1);
+  v0 = vfredmin_vs_f32m8_f32m1(v0, t0, fmin, N);
+  v1 = vfredmax_vs_f32m8_f32m1(v1, t1, fmax, N);
+  output[0] = __riscv_vfmv_f_s_f32m1_f32(v0);
+  output[1] = __riscv_vfmv_f_s_f32m1_f32(v1);
 }
 
 void xnn_qs8_vmul_minmax_fp32_ukernel__rvv_u2v(
@@ -380,109 +396,1063 @@ void xnn_qu8_vmulc_minmax_fp32_ukernel__rvv_u2v(
   } while (batch != 0);
 }
 
-void xnn_f32_vmax_ukernel__rvv_u1v(
+void xnn_f32_vlrelu_ukernel__rvv_u8v(
     size_t batch,
-    const float* input_a,
-    const float* input_b,
+    const float* input,
     float* output,
-    const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+    const union xnn_f32_lrelu_params params[restrict XNN_MIN_ELEMENTS(1)])
 {
-  assert(batch != 0);
-  assert(batch % sizeof(float) == 0);
-  assert(input_a != NULL);
-  assert(input_b != NULL);
-  assert(output != NULL);
+	//clock_t start_time, end_time;
+	//double cost_time;
+	//start_time = clock();
+	assert(batch != 0);
+	assert(batch % sizeof(float) == 0);
+	assert(input != NULL);
+	assert(output != NULL);
 
-  while (batch > 0) {
-      size_t vl = vsetvl_e32m1(batch);       // 设置向量寄存器每次操作的元素个数
-      vfloat32m1_t va = vle32_v_f32m1(input_a, vl); // 从数组a中加载vl个元素到向量寄存器va中
-      vfloat32m1_t vb = vle32_v_f32m1(input_b, vl); // 从数组b中加载vl个元素到向量寄存器vb中
-      vfloat32m1_t vc = vfmax_vv_f32m1(va, vb, vl);   // 向量寄存器va和向量寄存器vb中vl个元素对应取max，结果为vc
-      vse32_v_f32m1(output, vc, vl);   // 将向量寄存器中的vl个元素存到数组output中
+	const float vslope = params->scalar.slope;
+	size_t size = batch / sizeof(float);
 
-      input_a += vl;
-      input_b += vl;
-      output += vl;
-      batch -= vl;
-  }
+	do {
+		const size_t n = vsetvl_e32m8(size);
+
+		vfloat32m8_t in_u8v = vle32_v_f32m8(input, n);
+		input += n;
+		vbool4_t mask = vmflt_vf_f32m8_b4(in_u8v, .0f, n);
+		vfloat32m8_t out_u8v = vfmul_vf_f32m8_m(mask, in_u8v, in_u8v, vslope, n);
+		//vfloat32m8_t out_u8v = vfmax_vf_f32m8(in_u8v, .0f, n);
+		vse32_v_f32m8(output, out_u8v, n);
+
+		output += n;
+		size -= n;
+	} while (size > 0);
+	//end_time = clock();
+	//cost_time = ((double)(end_time -start_time)) * 1000 / CLOCKS_PER_SEC;
+    //printf("%s cost time %f ms\n", __func__, cost_time);
 }
 
-void xnn_f32_vmaxc_ukernel__rvv_u1v(
-    size_t batch,
-    const float* input_a,
-    const float* input_b,
-    float* output,
+
+void xnn_f32_gemm_ukernel_1x4__rvv_u1v(
+    size_t mr,
+    size_t nc,
+    size_t kc,
+    const float* restrict a,
+    size_t a_stride,
+    const float* restrict w,
+    float* restrict c,
+    size_t cm_stride,
+    size_t cn_stride,
     const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
 {
-  assert(batch != 0);
-  assert(batch % sizeof(float) == 0);
-  assert(input_a != NULL);
-  assert(input_b != NULL);
-  assert(output != NULL);
+	assert(mr != 0);
+	assert(mr <= 1);
+	assert(nc != 0);
+	assert(kc != 0);
+	assert(kc % sizeof(float) == 0);
+	assert(a != NULL);
+	assert(w != NULL);
+	assert(c != NULL);
 
-  const float vb = *input_b;
+	const float* a0 = a;
+	float* c0 = c;
+	size_t kcl = kc / sizeof(float);
 
-  while (batch > 0) {
-      size_t vl = vsetvl_e32m1(batch);       // 设置向量寄存器每次操作的元素个数
-      vfloat32m1_t va = vle32_v_f32m1(input_a, vl); // 从数组a中加载vl个元素到向量寄存器va中
-      vfloat32m1_t vc = vfmax_vf_f32m1(va, vb, vl);   // 向量寄存器va中vl个元素和常量vb对应对应取max，结果为vc
-      vse32_v_f32m1(output, vc, vl);   // 将向量寄存器中的vl个元素存到数组output中
-
-      input_a += vl;
-      output += vl;
-      batch -= vl;
-  }
+	do {
+		size_t vl = vsetvl_e32m1(nc);
+		vfloat32m1_t vacc = vle32_v_f32m1(w, vl);
+		w += vl;
+		for(size_t k = 0; k < kcl ; k++){
+			vfloat32m1_t vw = vle32_v_f32m1(w, vl);
+			w += vl;
+			vacc = vfmacc_vf_f32m1(vacc, *a0, vw, vl);
+			a0++;
+		}
+		vse32_v_f32m1(c0, vacc, vl);
+		if(nc >= 4){
+      		c0 = (float*) ((uintptr_t) c0 + cn_stride);
+      		a0 = (const void*) ((uintptr_t) a0 - kc);
+		}
+		nc -= vl;
+	} while (nc != 0);
 }
 
-void xnn_f32_vmin_ukernel__rvv_u1v(
-    size_t batch,
-    const float* input_a,
-    const float* input_b,
-    float* output,
+void xnn_f32_gemm_ukernel_4x4__rvv_u1v(
+    size_t mr,
+    size_t nc,
+    size_t kc,
+    const float* restrict a,
+    size_t a_stride,
+    const float* restrict w,
+    float* restrict c,
+    size_t cm_stride,
+    size_t cn_stride,
     const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
 {
-  assert(batch != 0);
-  assert(batch % sizeof(float) == 0);
-  assert(input_a != NULL);
-  assert(input_b != NULL);
-  assert(output != NULL);
-  while (batch > 0) {
-      size_t vl = vsetvl_e32m1(batch);       // 设置向量寄存器每次操作的元素个数
-      vfloat32m1_t va = vle32_v_f32m1(input_a, vl); // 从数组a中加载vl个元素到向量寄存器va中
-      vfloat32m1_t vb = vle32_v_f32m1(input_b, vl); // 从数组b中加载vl个元素到向量寄存器vb中
-      vfloat32m1_t vc = vfmin_vv_f32m1(va, vb, vl);   // 向量寄存器va和向量寄存器vb中vl个元素对应取min，结果为vc
-      vse32_v_f32m1(output, vc, vl);   // 将向量寄存器中的vl个元素存到数组output中
+        assert(mr != 0);
+        assert(mr <= 4); // max process 1 row
+        assert(nc != 0);
+        assert(kc != 0);
+        assert(kc % sizeof(float) == 0);
+        assert(a != NULL);
+        assert(w != NULL);
+        assert(c != NULL);
 
-      input_a += vl;
-      input_b += vl;
-      output += vl;
-      batch -= vl;
+  const float* a0 = a;
+  float* c0 = c;
+  const float* a1 = (const float*) ((uintptr_t) a0 + a_stride);
+  float* c1 = (float*) ((uintptr_t) c0 + cm_stride);
+  if XNN_UNPREDICTABLE(mr < 2) {
+    a1 = a0;
+    c1 = c0;
   }
+  const float* a2 = (const float*) ((uintptr_t) a1 + a_stride);
+  float* c2 = (float*) ((uintptr_t) c1 + cm_stride);
+  if XNN_UNPREDICTABLE(mr <= 2) {
+    a2 = a1;
+    c2 = c1;
+  }
+  const float* a3 = (const float*) ((uintptr_t) a2 + a_stride);
+  float* c3 = (float*) ((uintptr_t) c2 + cm_stride);
+  if XNN_UNPREDICTABLE(mr != 4) {
+    a3 = a2;
+    c3 = c2;
+  }
+
+        size_t kcl = kc / sizeof(float);
+
+        do {
+                size_t vl = vsetvl_e32m1(nc); // vector length
+                vfloat32m1_t vacc0 = vle32_v_f32m1(w, vl); // 1st row count
+                vfloat32m1_t vacc1 = vle32_v_f32m1(w, vl); // 1st row count
+                vfloat32m1_t vacc2 = vle32_v_f32m1(w, vl); // 1st row count
+                vfloat32m1_t vacc3 = vle32_v_f32m1(w, vl); // 1st row count
+                w += vl;
+                for(size_t k = 0; k < kcl ; k++){
+                        vfloat32m1_t vw = vle32_v_f32m1(w, vl);
+                        w += vl;
+                        vacc0 = vfmacc_vf_f32m1(vacc0, *a0, vw, vl); // update 1st row count
+                        vacc1 = vfmacc_vf_f32m1(vacc1, *a1, vw, vl); // update 1st row count
+                        vacc2 = vfmacc_vf_f32m1(vacc2, *a2, vw, vl); // update 1st row count
+                        vacc3 = vfmacc_vf_f32m1(vacc3, *a3, vw, vl); // update 1st row count
+                        a0++;
+                        a1++;
+                        a2++;
+                        a3++;
+                }
+                vse32_v_f32m1(c0, vacc0, vl); // store 1st row result
+                vse32_v_f32m1(c1, vacc1, vl); // store 1st row result
+                vse32_v_f32m1(c2, vacc2, vl); // store 1st row result
+                vse32_v_f32m1(c3, vacc3, vl); // store 1st row result
+                if(nc >= 4){
+                c0 = (float*) ((uintptr_t) c0 + cn_stride); // update 1st row matrix C pointer
+                c1 = (float*) ((uintptr_t) c1 + cn_stride); // update 1st row matrix C pointer
+                c2 = (float*) ((uintptr_t) c2 + cn_stride); // update 1st row matrix C pointer
+                c3 = (float*) ((uintptr_t) c3 + cn_stride); // update 1st row matrix C pointer
+                a0 = (const void*) ((uintptr_t) a0 - kc); // update 1st row matrix A pointer
+                a1 = (const void*) ((uintptr_t) a1 - kc); // update 1st row matrix A pointer
+                a2 = (const void*) ((uintptr_t) a2 - kc); // update 1st row matrix A pointer
+                a3 = (const void*) ((uintptr_t) a3 - kc); // update 1st row matrix A pointer
+                }
+                nc -= vl;
+        } while (nc != 0);
+
 }
 
-void xnn_f32_vminc_ukernel__rvv_u1v(
-    size_t batch,
-    const float* input_a,
-    const float* input_b,
-    float* output,
+void xnn_x32_packw_gemm_goi_ukernel_x4__rvv_float_u4(
+        size_t g,
+        size_t nc,
+        size_t kc,
+        size_t nr,
+        size_t kr,
+        size_t sr,
+        const uint32_t* weights,
+        const uint32_t* bias,
+        const void* scale,
+        uint32_t* packed_weights,
+        size_t extra_bytes,
+        const void* params)
+{
+    assert(g != 0);
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(nr == 4);
+    assert(kr == 1);
+    assert(sr == 1);
+    assert(weights != NULL);
+    assert(packed_weights != NULL);
+
+    float* out = (float*) packed_weights;
+    const float* b = (const float*) bias;
+
+    do {
+        // NC main loop multiple of 4
+        const float* w0 = (const float*) weights;
+        size_t n = nc;
+
+        do {
+            size_t vl = vsetvl_e32m1(n);
+            vfloat32m1_t vacc;
+            if XNN_LIKELY(b != NULL) {
+                vacc = vle32_v_f32m1(b, vl);
+                b += 4;
+            } else {
+                vacc = vfmv_v_f_f32m1(0.0f, vl);
+            }
+            vse32_v_f32m1(out, vacc, vl);
+            out += 4;
+
+            size_t k = kc;
+/*            for (; k >= 8; k -= 8) {
+                vfloat32m1_t vacc0 = vlse32_v_f32m1(w0, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+                vfloat32m1_t vacc1 = vlse32_v_f32m1(w0 + 1, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+                vfloat32m1_t vacc2 = vlse32_v_f32m1(w0 + 2, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+                vfloat32m1_t vacc3 = vlse32_v_f32m1(w0 + 3, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+                vfloat32m1_t vacc4 = vlse32_v_f32m1(w0 + 4, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+                vfloat32m1_t vacc5 = vlse32_v_f32m1(w0 + 5, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+                vfloat32m1_t vacc6 = vlse32_v_f32m1(w0 + 6, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+                vfloat32m1_t vacc7 = vlse32_v_f32m1(w0 + 7, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+                vse32_v_f32m1(out, vacc0, vl);
+                vse32_v_f32m1(out + 4, vacc1, vl);
+                vse32_v_f32m1(out + 8, vacc2, vl);
+                vse32_v_f32m1(out + 12, vacc3, vl);
+                vse32_v_f32m1(out + 16, vacc0, vl);
+                vse32_v_f32m1(out + 20, vacc1, vl);
+                vse32_v_f32m1(out + 24, vacc2, vl);
+                vse32_v_f32m1(out + 28, vacc3, vl);
+                w0 += 8;
+                if XNN_UNPREDICTABLE(vl < 2) {
+                    out[1] = out[0];
+                    out[5] = out[4];
+                    out[9] = out[8];
+                    out[13] = out[12];
+                    out[17] = out[16];
+                    out[21] = out[20];
+                    out[25] = out[24];
+                    out[29] = out[28];
+                }
+                if XNN_UNPREDICTABLE(vl <= 2) {
+                    out[2] = out[1];
+                    out[6] = out[5];
+                    out[10] = out[9];
+                    out[14] = out[13];
+                    out[18] = out[17];
+                    out[22] = out[21];
+                    out[26] = out[25];
+                    out[30] = out[29];
+                }
+                out += 32;
+            }*/
+            for (; k >= 4; k -= 4) {
+                vfloat32m1_t vacc0 = vlse32_v_f32m1(w0, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+                vfloat32m1_t vacc1 = vlse32_v_f32m1(w0 + 1, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+                vfloat32m1_t vacc2 = vlse32_v_f32m1(w0 + 2, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+                vfloat32m1_t vacc3 = vlse32_v_f32m1(w0 + 3, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+                vse32_v_f32m1(out, vacc0, vl);
+                vse32_v_f32m1(out + 4, vacc1, vl);
+                vse32_v_f32m1(out + 8, vacc2, vl);
+                vse32_v_f32m1(out + 12, vacc3, vl);
+                w0 += 4;
+                if XNN_UNPREDICTABLE(vl < 2) {
+                    out[1] = out[0];
+                    out[5] = out[4];
+                    out[9] = out[8];
+                    out[13] = out[12];
+                }
+                if XNN_UNPREDICTABLE(vl <= 2) {
+                    out[2] = out[1];
+                    out[6] = out[5];
+                    out[10] = out[9];
+                    out[14] = out[13];
+                }
+                out += 16;
+            }
+            for (; k != 0; --k) {
+                vacc = vlse32_v_f32m1(w0, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+                vse32_v_f32m1(out, vacc, vl);
+                w0++;
+                if XNN_UNPREDICTABLE(vl < 2) {
+                    out[1] = out[0];
+                }
+                if XNN_UNPREDICTABLE(vl <= 2) {
+                    out[2] = out[1];
+                }
+                out += 4;
+            }
+
+            out = (float*) ((uintptr_t) out + extra_bytes);
+            w0 += kc * 3;
+            n -= vl;
+        } while (n != 0);
+
+        weights += nc * kc;
+
+    } while (--g != 0);
+}
+
+void xnn_f32_igemm_ukernel_4x4__rvv_u1v(
+    size_t mr,
+    size_t nc,
+    size_t kc,
+    size_t ks,
+    const float** restrict a,
+    const float* restrict w,
+    float* restrict c,
+    size_t cm_stride,
+    size_t cn_stride,
+    size_t a_offset,const float* zero,
     const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
 {
-  assert(batch != 0);
-  assert(batch % sizeof(float) == 0);
-  assert(input_a != NULL);
-  assert(input_b != NULL);
-  assert(output != NULL);
+    assert(mr != 0);
+    assert(mr <= 4);
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(ks != 0);
+    assert(ks % (4 * sizeof(void*)) == 0);
+    assert(a_offset % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
 
-  const float vb = *input_b;
+    float* c0 = c;
+    float* c1 = (float*) ((uintptr_t) c0 + cm_stride);
+    if XNN_UNPREDICTABLE(mr < 2) {
+        c1 = c0;
+    }
+    float* c2 = (float*) ((uintptr_t) c1 + cm_stride);
+    if XNN_UNPREDICTABLE(mr <= 2) {
+        c2 = c1;
+    }
+    float* c3 = (float*) ((uintptr_t) c2 + cm_stride);
+    if XNN_UNPREDICTABLE(mr != 4) {
+        c3 = c2;
+    }
 
-  while (batch > 0) {
-      size_t vl = vsetvl_e32m1(batch);       // 设置向量寄存器每次操作的元素个数
-      vfloat32m1_t va = vle32_v_f32m1(input_a, vl); // 从数组a中加载vl个元素到向量寄存器va中
-      vfloat32m1_t vc = vfmin_vf_f32m1(va, vb, vl);   // 向量寄存器va中vl个元素和常量vb对应对应取min，结果为vc
-      vse32_v_f32m1(output, vc, vl);   // 将向量寄存器中的vl个元素存到数组output中
+    do {
+        size_t vl = vsetvl_e32m1(nc); // vector length
+        vfloat32m1_t vacc0 = vle32_v_f32m1(w, vl); // 1st row count
+        vfloat32m1_t vacc1 = vle32_v_f32m1(w, vl); // 1st row count
+        vfloat32m1_t vacc2 = vle32_v_f32m1(w, vl); // 1st row count
+        vfloat32m1_t vacc3 = vle32_v_f32m1(w, vl); // 1st row count
+        w += vl;
 
-      input_a += vl;
-      output += vl;
-      batch -= vl;
-  }
+        size_t p = ks;
+        size_t kcl = kc / sizeof(float);
+        do {
+            const float* restrict a0 = a[0];
+            assert(a0 != NULL);
+            if XNN_UNPREDICTABLE(a0 != zero) {
+                a0 = (const float*) ((uintptr_t) a0 + a_offset);
+            }
+            const float* restrict a1 = a[1];
+            assert(a1 != NULL);
+            if XNN_UNPREDICTABLE(a1 != zero) {
+                a1 = (const float*) ((uintptr_t) a1 + a_offset);
+            }
+            const float* restrict a2 = a[2];
+            assert(a2 != NULL);
+            if XNN_UNPREDICTABLE(a2 != zero) {
+                a2 = (const float*) ((uintptr_t) a2 + a_offset);
+            }
+            const float* restrict a3 = a[3];
+            assert(a3 != NULL);
+            if XNN_UNPREDICTABLE(a3 != zero) {
+                a3 = (const float*) ((uintptr_t) a3 + a_offset);
+            }
+            a += 4;
+
+            size_t k = kc;
+            for(size_t k = 0; k < kcl ; k++){
+                vfloat32m1_t vw = vle32_v_f32m1(w, vl);
+                w += vl;
+                vacc0 = vfmacc_vf_f32m1(vacc0, *a0, vw, vl); // update 1st row count
+                vacc1 = vfmacc_vf_f32m1(vacc1, *a1, vw, vl); // update 1st row count
+                vacc2 = vfmacc_vf_f32m1(vacc2, *a2, vw, vl); // update 1st row count
+                vacc3 = vfmacc_vf_f32m1(vacc3, *a3, vw, vl); // update 1st row count
+                a0++;
+                a1++;
+                a2++;
+                a3++;
+            }
+            p -= 4 * sizeof(void*);
+        } while (p != 0);
+        vse32_v_f32m1(c0, vacc0, vl); // store 1st row result
+        vse32_v_f32m1(c1, vacc1, vl); // store 1st row result
+        vse32_v_f32m1(c2, vacc2, vl); // store 1st row result
+        vse32_v_f32m1(c3, vacc3, vl); // store 1st row result
+
+        if XNN_LIKELY(nc >= 4) {
+            c3 = (float*) ((uintptr_t) c3 + cn_stride);
+            c2 = (float*) ((uintptr_t) c2 + cn_stride);
+            c1 = (float*) ((uintptr_t) c1 + cn_stride);
+            c0 = (float*) ((uintptr_t) c0 + cn_stride);
+
+            a = (const float**restrict) ((uintptr_t) a - ks);
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+//void xnn_x32_packw_gemm_goi_ukernel_x8__rvv_float_u4(
+//        size_t g,
+//        size_t nc,
+//        size_t kc,
+//        size_t nr,
+//        size_t kr,
+//        size_t sr,
+//        const uint32_t* weights,
+//        const uint32_t* bias,
+//        const void* scale,
+//        uint32_t* packed_weights,
+//        size_t extra_bytes,
+//        const void* params)
+//{
+//    assert(g != 0);
+//    assert(nc != 0);
+//    assert(kc != 0);
+//    assert(nr == 8);
+//    assert(kr == 1);
+//    assert(sr == 1);
+//    assert(weights != NULL);
+//    assert(packed_weights != NULL);
+//
+//    float* out = (float*) packed_weights;
+//    const float* b = (const float*) bias;
+//
+//    do {
+//        // NC main loop multiple of 8
+//        const float* w0 = (const float*) weights;
+//        size_t n = nc;
+//
+//        do {
+//            size_t vl = vsetvl_e32m2(n);
+//            vfloat32m2_t vacc;
+//            if XNN_LIKELY(b != NULL) {
+//                vacc = vle32_v_f32m2(b, vl);
+//                b += 8;
+//            } else {
+//                vacc = vfmv_v_f_f32m2(0.0f, vl);
+//            }
+//            vse32_v_f32m2(out, vacc, vl);
+//            out += 8;
+//
+//            size_t k = kc;
+///*            for (; k >= 8; k -= 8) {
+//                vfloat32m1_t vacc0 = vlse32_v_f32m1(w0, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+//                vfloat32m1_t vacc1 = vlse32_v_f32m1(w0 + 1, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+//                vfloat32m1_t vacc2 = vlse32_v_f32m1(w0 + 2, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+//                vfloat32m1_t vacc3 = vlse32_v_f32m1(w0 + 3, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+//                vfloat32m1_t vacc4 = vlse32_v_f32m1(w0 + 4, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+//                vfloat32m1_t vacc5 = vlse32_v_f32m1(w0 + 5, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+//                vfloat32m1_t vacc6 = vlse32_v_f32m1(w0 + 6, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+//                vfloat32m1_t vacc7 = vlse32_v_f32m1(w0 + 7, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+//                vse32_v_f32m1(out, vacc0, vl);
+//                vse32_v_f32m1(out + 4, vacc1, vl);
+//                vse32_v_f32m1(out + 8, vacc2, vl);
+//                vse32_v_f32m1(out + 12, vacc3, vl);
+//                vse32_v_f32m1(out + 16, vacc0, vl);
+//                vse32_v_f32m1(out + 20, vacc1, vl);
+//                vse32_v_f32m1(out + 24, vacc2, vl);
+//                vse32_v_f32m1(out + 28, vacc3, vl);
+//                w0 += 8;
+//                if XNN_UNPREDICTABLE(vl < 2) {
+//                    out[1] = out[0];
+//                    out[5] = out[4];
+//                    out[9] = out[8];
+//                    out[13] = out[12];
+//                    out[17] = out[16];
+//                    out[21] = out[20];
+//                    out[25] = out[24];
+//                    out[29] = out[28];
+//                }
+//                if XNN_UNPREDICTABLE(vl <= 2) {
+//                    out[2] = out[1];
+//                    out[6] = out[5];
+//                    out[10] = out[9];
+//                    out[14] = out[13];
+//                    out[18] = out[17];
+//                    out[22] = out[21];
+//                    out[26] = out[25];
+//                    out[30] = out[29];
+//                }
+//                out += 32;
+//            }*/
+//            for (; k >= 4; k -= 4) {
+//                vfloat32m1_t vacc0 = vlse32_v_f32m1(w0, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+//                vfloat32m1_t vacc1 = vlse32_v_f32m1(w0 + 1, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+//                vfloat32m1_t vacc2 = vlse32_v_f32m1(w0 + 2, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+//                vfloat32m1_t vacc3 = vlse32_v_f32m1(w0 + 3, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+//                vse32_v_f32m1(out, vacc0, vl);
+//                vse32_v_f32m1(out + 4, vacc1, vl);
+//                vse32_v_f32m1(out + 8, vacc2, vl);
+//                vse32_v_f32m1(out + 12, vacc3, vl);
+//                w0 += 4;
+//                if XNN_UNPREDICTABLE(vl < 2) {
+//                    out[1] = out[0];
+//                    out[5] = out[4];
+//                    out[9] = out[8];
+//                    out[13] = out[12];
+//                }
+//                if XNN_UNPREDICTABLE(vl <= 2) {
+//                    out[2] = out[1];
+//                    out[6] = out[5];
+//                    out[10] = out[9];
+//                    out[14] = out[13];
+//                }
+//                out += 16;
+//            }
+//            for (; k != 0; --k) {
+//                vacc = vlse32_v_f32m1(w0, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+//                vse32_v_f32m1(out, vacc, vl);
+//                w0++;
+//                if XNN_UNPREDICTABLE(vl < 2) {
+//                    out[1] = out[0];
+//                }
+//                if XNN_UNPREDICTABLE(vl <= 2) {
+//                    out[2] = out[1];
+//                }
+//                out += 4;
+//            }
+//
+//            out = (float*) ((uintptr_t) out + extra_bytes);
+//            w0 += kc * 3;
+//            n -= vl;
+//        } while (n != 0);
+//
+//        weights += nc * kc;
+//
+//    } while (--g != 0);
+//}
+
+void xnn_f32_igemm_ukernel_4x8__rvv_u2v(
+        size_t mr,
+        size_t nc,
+        size_t kc,
+        size_t ks,
+        const float** restrict a,
+        const float* restrict w,
+        float* restrict c,
+        size_t cm_stride,
+        size_t cn_stride,
+        size_t a_offset,const float* zero,
+        const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 4);
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(ks != 0);
+    assert(ks % (4 * sizeof(void*)) == 0);
+    assert(a_offset % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    float* c0 = c;
+    float* c1 = (float*) ((uintptr_t) c0 + cm_stride);
+    if XNN_UNPREDICTABLE(mr < 2) {
+        c1 = c0;
+    }
+    float* c2 = (float*) ((uintptr_t) c1 + cm_stride);
+    if XNN_UNPREDICTABLE(mr <= 2) {
+        c2 = c1;
+    }
+    float* c3 = (float*) ((uintptr_t) c2 + cm_stride);
+    if XNN_UNPREDICTABLE(mr != 4) {
+        c3 = c2;
+    }
+
+    do {
+        size_t vl = vsetvl_e32m2(nc); // vector length
+        vfloat32m2_t vacc0 = vle32_v_f32m2(w, vl); // 1st row count
+        vfloat32m2_t vacc1 = vle32_v_f32m2(w, vl); // 1st row count
+        vfloat32m2_t vacc2 = vle32_v_f32m2(w, vl); // 1st row count
+        vfloat32m2_t vacc3 = vle32_v_f32m2(w, vl); // 1st row count
+        w += vl;
+
+        size_t p = ks;
+        size_t kcl = kc / sizeof(float);
+        do {
+            const float* restrict a0 = a[0];
+            assert(a0 != NULL);
+            if XNN_UNPREDICTABLE(a0 != zero) {
+                a0 = (const float*) ((uintptr_t) a0 + a_offset);
+            }
+            const float* restrict a1 = a[1];
+            assert(a1 != NULL);
+            if XNN_UNPREDICTABLE(a1 != zero) {
+                a1 = (const float*) ((uintptr_t) a1 + a_offset);
+            }
+            const float* restrict a2 = a[2];
+            assert(a2 != NULL);
+            if XNN_UNPREDICTABLE(a2 != zero) {
+                a2 = (const float*) ((uintptr_t) a2 + a_offset);
+            }
+            const float* restrict a3 = a[3];
+            assert(a3 != NULL);
+            if XNN_UNPREDICTABLE(a3 != zero) {
+                a3 = (const float*) ((uintptr_t) a3 + a_offset);
+            }
+            a += 4;
+
+            size_t k = kc;
+            for(size_t k = 0; k < kcl ; k++){
+                vfloat32m2_t vw = vle32_v_f32m2(w, vl);
+                w += vl;
+                vacc0 = vfmacc_vf_f32m2(vacc0, *a0, vw, vl); // update 1st row count
+                vacc1 = vfmacc_vf_f32m2(vacc1, *a1, vw, vl); // update 1st row count
+                vacc2 = vfmacc_vf_f32m2(vacc2, *a2, vw, vl); // update 1st row count
+                vacc3 = vfmacc_vf_f32m2(vacc3, *a3, vw, vl); // update 1st row count
+                a0++;
+                a1++;
+                a2++;
+                a3++;
+            }
+            p -= 4 * sizeof(void*);
+        } while (p != 0);
+        vse32_v_f32m2(c0, vacc0, vl); // store 1st row result
+        vse32_v_f32m2(c1, vacc1, vl); // store 1st row result
+        vse32_v_f32m2(c2, vacc2, vl); // store 1st row result
+        vse32_v_f32m2(c3, vacc3, vl); // store 1st row result
+
+        if XNN_LIKELY(nc >= 4) {
+            c3 = (float*) ((uintptr_t) c3 + cn_stride);
+            c2 = (float*) ((uintptr_t) c2 + cn_stride);
+            c1 = (float*) ((uintptr_t) c1 + cn_stride);
+            c0 = (float*) ((uintptr_t) c0 + cn_stride);
+
+            a = (const float**restrict) ((uintptr_t) a - ks);
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+void xnn_f32_gemm_ukernel_1x8__rvv_u2v(
+        size_t mr,
+        size_t nc,
+        size_t kc,
+        const float* restrict a,
+        size_t a_stride,
+        const float* restrict w,
+        float* restrict c,
+        size_t cm_stride,
+        size_t cn_stride,
+        const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 1);
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    const float* a0 = a;
+    float* c0 = c;
+    size_t kcl = kc / sizeof(float);
+
+    do {
+        size_t vl = vsetvl_e32m2(nc);
+        vfloat32m2_t vacc = vle32_v_f32m2(w, vl);
+        w += vl;
+        for(size_t k = 0; k < kcl ; k++){
+            vfloat32m2_t vw = vle32_v_f32m2(w, vl);
+            w += vl;
+            vacc = vfmacc_vf_f32m2(vacc, *a0, vw, vl);
+            a0++;
+        }
+        vse32_v_f32m2(c0, vacc, vl);
+        if(nc >= 4){
+            c0 = (float*) ((uintptr_t) c0 + cn_stride);
+            a0 = (const void*) ((uintptr_t) a0 - kc);
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+void xnn_f32_gemm_ukernel_4x8__rvv_u2v(
+        size_t mr,
+        size_t nc,
+        size_t kc,
+        const float* restrict a,
+        size_t a_stride,
+        const float* restrict w,
+        float* restrict c,
+        size_t cm_stride,
+        size_t cn_stride,
+        const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 4); // max process 1 row
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    const float* a0 = a;
+    float* c0 = c;
+    const float* a1 = (const float*) ((uintptr_t) a0 + a_stride);
+    float* c1 = (float*) ((uintptr_t) c0 + cm_stride);
+    if XNN_UNPREDICTABLE(mr < 2) {
+        a1 = a0;
+        c1 = c0;
+    }
+    const float* a2 = (const float*) ((uintptr_t) a1 + a_stride);
+    float* c2 = (float*) ((uintptr_t) c1 + cm_stride);
+    if XNN_UNPREDICTABLE(mr <= 2) {
+        a2 = a1;
+        c2 = c1;
+    }
+    const float* a3 = (const float*) ((uintptr_t) a2 + a_stride);
+    float* c3 = (float*) ((uintptr_t) c2 + cm_stride);
+    if XNN_UNPREDICTABLE(mr != 4) {
+        a3 = a2;
+        c3 = c2;
+    }
+
+    size_t kcl = kc / sizeof(float);
+
+    do {
+        size_t vl = vsetvl_e32m2(nc); // vector length
+        vfloat32m2_t vacc0 = vle32_v_f32m2(w, vl); // 1st row count
+        vfloat32m2_t vacc1 = vle32_v_f32m2(w, vl); // 1st row count
+        vfloat32m2_t vacc2 = vle32_v_f32m2(w, vl); // 1st row count
+        vfloat32m2_t vacc3 = vle32_v_f32m2(w, vl); // 1st row count
+        w += vl;
+        for(size_t k = 0; k < kcl ; k++){
+            vfloat32m2_t vw = vle32_v_f32m2(w, vl);
+            w += vl;
+            vacc0 = vfmacc_vf_f32m2(vacc0, *a0, vw, vl); // update 1st row count
+            vacc1 = vfmacc_vf_f32m2(vacc1, *a1, vw, vl); // update 1st row count
+            vacc2 = vfmacc_vf_f32m2(vacc2, *a2, vw, vl); // update 1st row count
+            vacc3 = vfmacc_vf_f32m2(vacc3, *a3, vw, vl); // update 1st row count
+            a0++;
+            a1++;
+            a2++;
+            a3++;
+        }
+        vse32_v_f32m2(c0, vacc0, vl); // store 1st row result
+        vse32_v_f32m2(c1, vacc1, vl); // store 1st row result
+        vse32_v_f32m2(c2, vacc2, vl); // store 1st row result
+        vse32_v_f32m2(c3, vacc3, vl); // store 1st row result
+        if(nc >= 4){
+            c0 = (float*) ((uintptr_t) c0 + cn_stride); // update 1st row matrix C pointer
+            c1 = (float*) ((uintptr_t) c1 + cn_stride); // update 1st row matrix C pointer
+            c2 = (float*) ((uintptr_t) c2 + cn_stride); // update 1st row matrix C pointer
+            c3 = (float*) ((uintptr_t) c3 + cn_stride); // update 1st row matrix C pointer
+            a0 = (const void*) ((uintptr_t) a0 - kc); // update 1st row matrix A pointer
+            a1 = (const void*) ((uintptr_t) a1 - kc); // update 1st row matrix A pointer
+            a2 = (const void*) ((uintptr_t) a2 - kc); // update 1st row matrix A pointer
+            a3 = (const void*) ((uintptr_t) a3 - kc); // update 1st row matrix A pointer
+        }
+        nc -= vl;
+    } while (nc != 0);
+
+}
+
+void xnn_f32_igemm_ukernel_4x16__rvv_u4v(
+        size_t mr,
+        size_t nc,
+        size_t kc,
+        size_t ks,
+        const float** restrict a,
+        const float* restrict w,
+        float* restrict c,
+        size_t cm_stride,
+        size_t cn_stride,
+        size_t a_offset,const float* zero,
+        const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 4);
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(ks != 0);
+    assert(ks % (4 * sizeof(void*)) == 0);
+    assert(a_offset % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    float* c0 = c;
+    float* c1 = (float*) ((uintptr_t) c0 + cm_stride);
+    if XNN_UNPREDICTABLE(mr < 2) {
+        c1 = c0;
+    }
+    float* c2 = (float*) ((uintptr_t) c1 + cm_stride);
+    if XNN_UNPREDICTABLE(mr <= 2) {
+        c2 = c1;
+    }
+    float* c3 = (float*) ((uintptr_t) c2 + cm_stride);
+    if XNN_UNPREDICTABLE(mr != 4) {
+        c3 = c2;
+    }
+
+    do {
+        size_t vl = vsetvl_e32m4(nc); // vector length
+        vfloat32m4_t vacc0 = vle32_v_f32m4(w, vl); // 1st row count
+        vfloat32m4_t vacc1 = vle32_v_f32m4(w, vl); // 1st row count
+        vfloat32m4_t vacc2 = vle32_v_f32m4(w, vl); // 1st row count
+        vfloat32m4_t vacc3 = vle32_v_f32m4(w, vl); // 1st row count
+        w += vl;
+
+        size_t p = ks;
+        size_t kcl = kc / sizeof(float);
+        do {
+            const float* restrict a0 = a[0];
+            assert(a0 != NULL);
+            if XNN_UNPREDICTABLE(a0 != zero) {
+                a0 = (const float*) ((uintptr_t) a0 + a_offset);
+            }
+            const float* restrict a1 = a[1];
+            assert(a1 != NULL);
+            if XNN_UNPREDICTABLE(a1 != zero) {
+                a1 = (const float*) ((uintptr_t) a1 + a_offset);
+            }
+            const float* restrict a2 = a[2];
+            assert(a2 != NULL);
+            if XNN_UNPREDICTABLE(a2 != zero) {
+                a2 = (const float*) ((uintptr_t) a2 + a_offset);
+            }
+            const float* restrict a3 = a[3];
+            assert(a3 != NULL);
+            if XNN_UNPREDICTABLE(a3 != zero) {
+                a3 = (const float*) ((uintptr_t) a3 + a_offset);
+            }
+            a += 4;
+
+            size_t k = kc;
+            for(size_t k = 0; k < kcl ; k++){
+                vfloat32m4_t vw = vle32_v_f32m4(w, vl);
+                w += vl;
+                vacc0 = vfmacc_vf_f32m4(vacc0, *a0, vw, vl); // update 1st row count
+                vacc1 = vfmacc_vf_f32m4(vacc1, *a1, vw, vl); // update 1st row count
+                vacc2 = vfmacc_vf_f32m4(vacc2, *a2, vw, vl); // update 1st row count
+                vacc3 = vfmacc_vf_f32m4(vacc3, *a3, vw, vl); // update 1st row count
+                a0++;
+                a1++;
+                a2++;
+                a3++;
+            }
+            p -= 4 * sizeof(void*);
+        } while (p != 0);
+        vse32_v_f32m4(c0, vacc0, vl); // store 1st row result
+        vse32_v_f32m4(c1, vacc1, vl); // store 1st row result
+        vse32_v_f32m4(c2, vacc2, vl); // store 1st row result
+        vse32_v_f32m4(c3, vacc3, vl); // store 1st row result
+
+        if XNN_LIKELY(nc >= 4) {
+            c3 = (float*) ((uintptr_t) c3 + cn_stride);
+            c2 = (float*) ((uintptr_t) c2 + cn_stride);
+            c1 = (float*) ((uintptr_t) c1 + cn_stride);
+            c0 = (float*) ((uintptr_t) c0 + cn_stride);
+
+            a = (const float**restrict) ((uintptr_t) a - ks);
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+void xnn_f32_gemm_ukernel_1x16__rvv_u4v(
+        size_t mr,
+        size_t nc,
+        size_t kc,
+        const float* restrict a,
+        size_t a_stride,
+        const float* restrict w,
+        float* restrict c,
+        size_t cm_stride,
+        size_t cn_stride,
+        const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 1);
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    const float* a0 = a;
+    float* c0 = c;
+    size_t kcl = kc / sizeof(float);
+
+    do {
+        size_t vl = vsetvl_e32m4(nc);
+        vfloat32m4_t vacc = vle32_v_f32m4(w, vl);
+        w += vl;
+        for(size_t k = 0; k < kcl ; k++){
+            vfloat32m4_t vw = vle32_v_f32m4(w, vl);
+            w += vl;
+            vacc = vfmacc_vf_f32m4(vacc, *a0, vw, vl);
+            a0++;
+        }
+        vse32_v_f32m4(c0, vacc, vl);
+        if(nc >= 4){
+            c0 = (float*) ((uintptr_t) c0 + cn_stride);
+            a0 = (const void*) ((uintptr_t) a0 - kc);
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+void xnn_f32_gemm_ukernel_4x16__rvv_u4v(
+        size_t mr,
+        size_t nc,
+        size_t kc,
+        const float* restrict a,
+        size_t a_stride,
+        const float* restrict w,
+        float* restrict c,
+        size_t cm_stride,
+        size_t cn_stride,
+        const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 4); // max process 1 row
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    const float* a0 = a;
+    float* c0 = c;
+    const float* a1 = (const float*) ((uintptr_t) a0 + a_stride);
+    float* c1 = (float*) ((uintptr_t) c0 + cm_stride);
+    if XNN_UNPREDICTABLE(mr < 2) {
+        a1 = a0;
+        c1 = c0;
+    }
+    const float* a2 = (const float*) ((uintptr_t) a1 + a_stride);
+    float* c2 = (float*) ((uintptr_t) c1 + cm_stride);
+    if XNN_UNPREDICTABLE(mr <= 2) {
+        a2 = a1;
+        c2 = c1;
+    }
+    const float* a3 = (const float*) ((uintptr_t) a2 + a_stride);
+    float* c3 = (float*) ((uintptr_t) c2 + cm_stride);
+    if XNN_UNPREDICTABLE(mr != 4) {
+        a3 = a2;
+        c3 = c2;
+    }
+
+    size_t kcl = kc / sizeof(float);
+
+    do {
+        size_t vl = vsetvl_e32m4(nc); // vector length
+        vfloat32m4_t vacc0 = vle32_v_f32m4(w, vl); // 1st row count
+        vfloat32m4_t vacc1 = vle32_v_f32m4(w, vl); // 1st row count
+        vfloat32m4_t vacc2 = vle32_v_f32m4(w, vl); // 1st row count
+        vfloat32m4_t vacc3 = vle32_v_f32m4(w, vl); // 1st row count
+        w += vl;
+        for(size_t k = 0; k < kcl ; k++){
+            vfloat32m4_t vw = vle32_v_f32m4(w, vl);
+            w += vl;
+            vacc0 = vfmacc_vf_f32m4(vacc0, *a0, vw, vl); // update 1st row count
+            vacc1 = vfmacc_vf_f32m4(vacc1, *a1, vw, vl); // update 1st row count
+            vacc2 = vfmacc_vf_f32m4(vacc2, *a2, vw, vl); // update 1st row count
+            vacc3 = vfmacc_vf_f32m4(vacc3, *a3, vw, vl); // update 1st row count
+            a0++;
+            a1++;
+            a2++;
+            a3++;
+        }
+        vse32_v_f32m4(c0, vacc0, vl); // store 1st row result
+        vse32_v_f32m4(c1, vacc1, vl); // store 1st row result
+        vse32_v_f32m4(c2, vacc2, vl); // store 1st row result
+        vse32_v_f32m4(c3, vacc3, vl); // store 1st row result
+        if(nc >= 4){
+            c0 = (float*) ((uintptr_t) c0 + cn_stride); // update 1st row matrix C pointer
+            c1 = (float*) ((uintptr_t) c1 + cn_stride); // update 1st row matrix C pointer
+            c2 = (float*) ((uintptr_t) c2 + cn_stride); // update 1st row matrix C pointer
+            c3 = (float*) ((uintptr_t) c3 + cn_stride); // update 1st row matrix C pointer
+            a0 = (const void*) ((uintptr_t) a0 - kc); // update 1st row matrix A pointer
+            a1 = (const void*) ((uintptr_t) a1 - kc); // update 1st row matrix A pointer
+            a2 = (const void*) ((uintptr_t) a2 - kc); // update 1st row matrix A pointer
+            a3 = (const void*) ((uintptr_t) a3 - kc); // update 1st row matrix A pointer
+        }
+        nc -= vl;
+    } while (nc != 0);
+
+}
+
+extern XNN_INTERNAL const uint32_t xnn_table_exp2minus_k_over_64[64];
+void xnn_f32_vsigmoid_ukernel__rvv_u2v(
+        size_t batch,
+        const float* input,
+        float* output,
+        const union xnn_f32_sigmoid_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input != NULL);
+    assert(output != NULL);
+
+printf("start!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+
+    const float vmagic_bias = params->scalar_rr2_lut64_p2.magic_bias;
+    const float vminus_log2e = params->scalar_rr2_lut64_p2.minus_log2e;
+    const uint32_t vindex_mask = UINT32_C(0x3F);
+    const float vln2_hi = params->scalar_rr2_lut64_p2.ln2_hi;
+    const float vln2_lo = params->scalar_rr2_lut64_p2.ln2_lo;
+    const float vc2 = params->scalar_rr2_lut64_p2.c2;
+    const float vone = params->scalar_rr2_lut64_p2.one;
+    const float vdenorm_cutoff = params->scalar_rr2_lut64_p2.denorm_cutoff;
+
+    size_t size = batch / sizeof(float);
+    do {
+        const size_t vl = vsetvl_e32m2(size);
+        vfloat32m2_t vx = vle32_v_f32m2(input, vl);
+        input += vl;
+        // get abs
+        printf("get abs");
+        vfloat32m2_t vz = vfabs_v_f32m2(vx, vl);
+        // vz*(-log2(e))+magic_bias
+        printf("vz*(-log2(e))+magic_bias");
+        vfloat32m2_t vn = vfadd_vf_f32m2(vfmul_vf_f32m2(vz, vminus_log2e, vl), vmagic_bias, vl);
+        // get exponent
+        printf("get exponent");
+        vuint32m2_t ve = vsll_vx_u32m2(vfcvt_xu_f_v_u32m2(vn, vl), 17, vl);
+        // find index in lookup table using mask
+        printf("find index in lookup table using mask");
+        vuint32m2_t vidx = vand_vx_u32m2(vfcvt_xu_f_v_u32m2(vn, vl), vindex_mask, vl);
+        vfloat32m2_t vs =  vfcvt_f_xu_v_f32m2(vadd_vv_u32m2(vloxei32_v_u32m2(xnn_table_exp2minus_k_over_64, vidx, vl), ve, vl), vl);
+        // remove magic bias
+        printf("remove magic bias");
+        vn = vfsub_vf_f32m2(vn, vmagic_bias, vl);
+        // find logarithm
+        printf("find logarithm");
+        vfloat32m2_t vt = vfadd_vv_f32m2(vfmul_vf_f32m2(vn, vln2_hi, vl), vz, vl);
+        vt = vfmacc_vf_f32m2(vt, vln2_lo, vn, vl);
+        // calculate the quadratic term logarithmically.
+        printf("calculate the quadratic term logarithmically.");
+        vfloat32m2_t vp = vfmul_vf_f32m2(vt, vc2, vl);
+        vp = vfsub_vv_f32m2(vt, vfmul_vv_f32m2(vp, vt, vl), vl);
+        // caculate sigmoid polynomial approximation
+        printf("caculate sigmoid polynomial approximation");
+        vfloat32m2_t vy = vfsub_vv_f32m2(vs, vfmul_vv_f32m2(vs, vp, vl), vl);
+        vfloat32m2_t vd = vfadd_vf_f32m2(vy, vone, vl);
+        vfloat32m2_t vf = vfdiv_vv_f32m2(vy, vd, vl);
+
+        vbool16_t mask = vmfgt_vf_f32m2_b16 (vz, vdenorm_cutoff, vl);
+        vf = vfmerge_vfm_f32m2(mask, vf, 0.0f, vl);
+
+        mask = vmfgt_vf_f32m2_b16 (vx, 0.0f, vl);
+        vf = vfmul_vf_f32m2_m(mask, vf, vf, -1.0f, vl);
+        vf = vfadd_vf_f32m2_m(mask, vf, vf, vone, vl);
+
+        // store result
+        vse32_v_f32m2(output, vf, vl);
+
+        output += vl;
+        size -= vl;
+    } while (size > 0);
 }
