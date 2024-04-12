@@ -30495,20 +30495,20 @@ const void* params)
         } while (--g != 0);
         }
 
-        void xnn_x32_packw_gemm_goi_ukernel_x16__scalar_float_u4(
+void xnn_x16_packw_gemm_goi_ukernel_x16__scalar_float_u4(
         size_t g,
         size_t nc,
         size_t kc,
         size_t nr,
         size_t kr,
         size_t sr,
-        const uint32_t* weights,
-        const uint32_t* bias,
+        const uint16_t* weights,
+        const uint16_t* bias,
         const void* scale,
-        uint32_t* packed_weights,
+        uint16_t* packed_weights,
         size_t extra_bytes,
         const void* params)
-        {
+{
         assert(g != 0);
         assert(nc != 0);
         assert(kc != 0);
@@ -30518,12 +30518,12 @@ const void* params)
         assert(weights != NULL);
         assert(packed_weights != NULL);
 
-        float* out = (float*) packed_weights;
-        const float* b = (const float*) bias;
+        __fp16* out = (__fp16*) packed_weights;
+        const __fp16* b = (const __fp16*) bias;
 
         do {
         // NC main loop multiple of 16
-        const float* w0 = (const float*) weights;
+        const __fp16* w0 = (const __fp16*) weights;
         size_t n = nc;
         for (;n >= 16; n -= 16) {
         if XNN_LIKELY(b != NULL) {
@@ -30564,104 +30564,104 @@ const void* params)
         }
         out += 16;
 
-        const float* w1 = w0 + kc;
-        const float* w2 = w1 + kc;
-        const float* w3 = w2 + kc;
-        const float* w4 = w3 + kc;
-        const float* w5 = w4 + kc;
-        const float* w6 = w5 + kc;
-        const float* w7 = w6 + kc;
-        const float* w8 = w7 + kc;
-        const float* w9 = w8 + kc;
-        const float* w10 = w9 + kc;
-        const float* w11 = w10 + kc;
-        const float* w12 = w11 + kc;
-        const float* w13 = w12 + kc;
-        const float* w14 = w13 + kc;
-        const float* w15 = w14 + kc;
+        const __fp16* w1 = w0 + kc;
+        const __fp16* w2 = w1 + kc;
+        const __fp16* w3 = w2 + kc;
+        const __fp16* w4 = w3 + kc;
+        const __fp16* w5 = w4 + kc;
+        const __fp16* w6 = w5 + kc;
+        const __fp16* w7 = w6 + kc;
+        const __fp16* w8 = w7 + kc;
+        const __fp16* w9 = w8 + kc;
+        const __fp16* w10 = w9 + kc;
+        const __fp16* w11 = w10 + kc;
+        const __fp16* w12 = w11 + kc;
+        const __fp16* w13 = w12 + kc;
+        const __fp16* w14 = w13 + kc;
+        const __fp16* w15 = w14 + kc;
 
         // KC main loop multiple of 16x4
         size_t k = kc;
         for (; k >= 4; k -= 4) {
-        const float v00 = w0[0];
-        const float v01 = w0[1];
-        const float v02 = w0[2];
-        const float v03 = w0[3];
+        const __fp16 v00 = w0[0];
+        const __fp16 v01 = w0[1];
+        const __fp16 v02 = w0[2];
+        const __fp16 v03 = w0[3];
         w0 += 4;
-        const float v10 = w1[0];
-        const float v11 = w1[1];
-        const float v12 = w1[2];
-        const float v13 = w1[3];
+        const __fp16 v10 = w1[0];
+        const __fp16 v11 = w1[1];
+        const __fp16 v12 = w1[2];
+        const __fp16 v13 = w1[3];
         w1 += 4;
-        const float v20 = w2[0];
-        const float v21 = w2[1];
-        const float v22 = w2[2];
-        const float v23 = w2[3];
+        const __fp16 v20 = w2[0];
+        const __fp16 v21 = w2[1];
+        const __fp16 v22 = w2[2];
+        const __fp16 v23 = w2[3];
         w2 += 4;
-        const float v30 = w3[0];
-        const float v31 = w3[1];
-        const float v32 = w3[2];
-        const float v33 = w3[3];
+        const __fp16 v30 = w3[0];
+        const __fp16 v31 = w3[1];
+        const __fp16 v32 = w3[2];
+        const __fp16 v33 = w3[3];
         w3 += 4;
-        const float v40 = w4[0];
-        const float v41 = w4[1];
-        const float v42 = w4[2];
-        const float v43 = w4[3];
+        const __fp16 v40 = w4[0];
+        const __fp16 v41 = w4[1];
+        const __fp16 v42 = w4[2];
+        const __fp16 v43 = w4[3];
         w4 += 4;
-        const float v50 = w5[0];
-        const float v51 = w5[1];
-        const float v52 = w5[2];
-        const float v53 = w5[3];
+        const __fp16 v50 = w5[0];
+        const __fp16 v51 = w5[1];
+        const __fp16 v52 = w5[2];
+        const __fp16 v53 = w5[3];
         w5 += 4;
-        const float v60 = w6[0];
-        const float v61 = w6[1];
-        const float v62 = w6[2];
-        const float v63 = w6[3];
+        const __fp16 v60 = w6[0];
+        const __fp16 v61 = w6[1];
+        const __fp16 v62 = w6[2];
+        const __fp16 v63 = w6[3];
         w6 += 4;
-        const float v70 = w7[0];
-        const float v71 = w7[1];
-        const float v72 = w7[2];
-        const float v73 = w7[3];
+        const __fp16 v70 = w7[0];
+        const __fp16 v71 = w7[1];
+        const __fp16 v72 = w7[2];
+        const __fp16 v73 = w7[3];
         w7 += 4;
-        const float v80 = w8[0];
-        const float v81 = w8[1];
-        const float v82 = w8[2];
-        const float v83 = w8[3];
+        const __fp16 v80 = w8[0];
+        const __fp16 v81 = w8[1];
+        const __fp16 v82 = w8[2];
+        const __fp16 v83 = w8[3];
         w8 += 4;
-        const float v90 = w9[0];
-        const float v91 = w9[1];
-        const float v92 = w9[2];
-        const float v93 = w9[3];
+        const __fp16 v90 = w9[0];
+        const __fp16 v91 = w9[1];
+        const __fp16 v92 = w9[2];
+        const __fp16 v93 = w9[3];
         w9 += 4;
-        const float v100 = w10[0];
-        const float v101 = w10[1];
-        const float v102 = w10[2];
-        const float v103 = w10[3];
+        const __fp16 v100 = w10[0];
+        const __fp16 v101 = w10[1];
+        const __fp16 v102 = w10[2];
+        const __fp16 v103 = w10[3];
         w10 += 4;
-        const float v110 = w11[0];
-        const float v111 = w11[1];
-        const float v112 = w11[2];
-        const float v113 = w11[3];
+        const __fp16 v110 = w11[0];
+        const __fp16 v111 = w11[1];
+        const __fp16 v112 = w11[2];
+        const __fp16 v113 = w11[3];
         w11 += 4;
-        const float v120 = w12[0];
-        const float v121 = w12[1];
-        const float v122 = w12[2];
-        const float v123 = w12[3];
+        const __fp16 v120 = w12[0];
+        const __fp16 v121 = w12[1];
+        const __fp16 v122 = w12[2];
+        const __fp16 v123 = w12[3];
         w12 += 4;
-        const float v130 = w13[0];
-        const float v131 = w13[1];
-        const float v132 = w13[2];
-        const float v133 = w13[3];
+        const __fp16 v130 = w13[0];
+        const __fp16 v131 = w13[1];
+        const __fp16 v132 = w13[2];
+        const __fp16 v133 = w13[3];
         w13 += 4;
-        const float v140 = w14[0];
-        const float v141 = w14[1];
-        const float v142 = w14[2];
-        const float v143 = w14[3];
+        const __fp16 v140 = w14[0];
+        const __fp16 v141 = w14[1];
+        const __fp16 v142 = w14[2];
+        const __fp16 v143 = w14[3];
         w14 += 4;
-        const float v150 = w15[0];
-        const float v151 = w15[1];
-        const float v152 = w15[2];
-        const float v153 = w15[3];
+        const __fp16 v150 = w15[0];
+        const __fp16 v151 = w15[1];
+        const __fp16 v152 = w15[2];
+        const __fp16 v153 = w15[3];
         w15 += 4;
         out[0] = v00;
         out[1] = v10;
@@ -30732,41 +30732,41 @@ const void* params)
 
         // KC remainder
         for (; k != 0; --k) {
-        const float v0 = *w0++;
+        const __fp16 v0 = *w0++;
         out[0] = v0;
-        const float v1 = *w1++;
+        const __fp16 v1 = *w1++;
         out[1] = v1;
-        const float v2 = *w2++;
+        const __fp16 v2 = *w2++;
         out[2] = v2;
-        const float v3 = *w3++;
+        const __fp16 v3 = *w3++;
         out[3] = v3;
-        const float v4 = *w4++;
+        const __fp16 v4 = *w4++;
         out[4] = v4;
-        const float v5 = *w5++;
+        const __fp16 v5 = *w5++;
         out[5] = v5;
-        const float v6 = *w6++;
+        const __fp16 v6 = *w6++;
         out[6] = v6;
-        const float v7 = *w7++;
+        const __fp16 v7 = *w7++;
         out[7] = v7;
-        const float v8 = *w8++;
+        const __fp16 v8 = *w8++;
         out[8] = v8;
-        const float v9 = *w9++;
+        const __fp16 v9 = *w9++;
         out[9] = v9;
-        const float v10 = *w10++;
+        const __fp16 v10 = *w10++;
         out[10] = v10;
-        const float v11 = *w11++;
+        const __fp16 v11 = *w11++;
         out[11] = v11;
-        const float v12 = *w12++;
+        const __fp16 v12 = *w12++;
         out[12] = v12;
-        const float v13 = *w13++;
+        const __fp16 v13 = *w13++;
         out[13] = v13;
-        const float v14 = *w14++;
+        const __fp16 v14 = *w14++;
         out[14] = v14;
-        const float v15 = *w15++;
+        const __fp16 v15 = *w15++;
         out[15] = v15;
         out += 16;
         }
-        out = (float*) ((uintptr_t) out + extra_bytes);
+        out = (__fp16*) ((uintptr_t) out + extra_bytes);
         w0 = w15;
         }
 
@@ -30786,59 +30786,59 @@ const void* params)
         out += (16 - n);
 
         // NR remainder has less than 16 rows so last row is not loaded
-        const float* w1 = w0 + kc;
+        const __fp16* w1 = w0 + kc;
         if XNN_UNPREDICTABLE(n < 2) {
         w1 = w0;
         }
-        const float* w2 = w1 + kc;
+        const __fp16* w2 = w1 + kc;
         if XNN_UNPREDICTABLE(n <= 2) {
         w2 = w1;
         }
-        const float* w3 = w2 + kc;
+        const __fp16* w3 = w2 + kc;
         if XNN_UNPREDICTABLE(n < 4) {
         w3 = w2;
         }
-        const float* w4 = w3 + kc;
+        const __fp16* w4 = w3 + kc;
         if XNN_UNPREDICTABLE(n <= 4) {
         w4 = w3;
         }
-        const float* w5 = w4 + kc;
+        const __fp16* w5 = w4 + kc;
         if XNN_UNPREDICTABLE(n < 6) {
         w5 = w4;
         }
-        const float* w6 = w5 + kc;
+        const __fp16* w6 = w5 + kc;
         if XNN_UNPREDICTABLE(n <= 6) {
         w6 = w5;
         }
-        const float* w7 = w6 + kc;
+        const __fp16* w7 = w6 + kc;
         if XNN_UNPREDICTABLE(n < 8) {
         w7 = w6;
         }
-        const float* w8 = w7 + kc;
+        const __fp16* w8 = w7 + kc;
         if XNN_UNPREDICTABLE(n <= 8) {
         w8 = w7;
         }
-        const float* w9 = w8 + kc;
+        const __fp16* w9 = w8 + kc;
         if XNN_UNPREDICTABLE(n < 10) {
         w9 = w8;
         }
-        const float* w10 = w9 + kc;
+        const __fp16* w10 = w9 + kc;
         if XNN_UNPREDICTABLE(n <= 10) {
         w10 = w9;
         }
-        const float* w11 = w10 + kc;
+        const __fp16* w11 = w10 + kc;
         if XNN_UNPREDICTABLE(n < 12) {
         w11 = w10;
         }
-        const float* w12 = w11 + kc;
+        const __fp16* w12 = w11 + kc;
         if XNN_UNPREDICTABLE(n <= 12) {
         w12 = w11;
         }
-        const float* w13 = w12 + kc;
+        const __fp16* w13 = w12 + kc;
         if XNN_UNPREDICTABLE(n < 14) {
         w13 = w12;
         }
-        const float* w14 = w13 + kc;
+        const __fp16* w14 = w13 + kc;
         if XNN_UNPREDICTABLE(n <= 14) {
         w14 = w13;
         }
@@ -30846,80 +30846,80 @@ const void* params)
         // KC main loop multiple of 16x4
         size_t k = kc;
         for (; k >= 4; k -= 4) {
-        const float v00 = w0[0];
-        const float v01 = w0[1];
-        const float v02 = w0[2];
-        const float v03 = w0[3];
+        const __fp16 v00 = w0[0];
+        const __fp16 v01 = w0[1];
+        const __fp16 v02 = w0[2];
+        const __fp16 v03 = w0[3];
         w0 += 4;
-        const float v10 = w1[0];
-        const float v11 = w1[1];
-        const float v12 = w1[2];
-        const float v13 = w1[3];
+        const __fp16 v10 = w1[0];
+        const __fp16 v11 = w1[1];
+        const __fp16 v12 = w1[2];
+        const __fp16 v13 = w1[3];
         w1 += 4;
-        const float v20 = w2[0];
-        const float v21 = w2[1];
-        const float v22 = w2[2];
-        const float v23 = w2[3];
+        const __fp16 v20 = w2[0];
+        const __fp16 v21 = w2[1];
+        const __fp16 v22 = w2[2];
+        const __fp16 v23 = w2[3];
         w2 += 4;
-        const float v30 = w3[0];
-        const float v31 = w3[1];
-        const float v32 = w3[2];
-        const float v33 = w3[3];
+        const __fp16 v30 = w3[0];
+        const __fp16 v31 = w3[1];
+        const __fp16 v32 = w3[2];
+        const __fp16 v33 = w3[3];
         w3 += 4;
-        const float v40 = w4[0];
-        const float v41 = w4[1];
-        const float v42 = w4[2];
-        const float v43 = w4[3];
+        const __fp16 v40 = w4[0];
+        const __fp16 v41 = w4[1];
+        const __fp16 v42 = w4[2];
+        const __fp16 v43 = w4[3];
         w4 += 4;
-        const float v50 = w5[0];
-        const float v51 = w5[1];
-        const float v52 = w5[2];
-        const float v53 = w5[3];
+        const __fp16 v50 = w5[0];
+        const __fp16 v51 = w5[1];
+        const __fp16 v52 = w5[2];
+        const __fp16 v53 = w5[3];
         w5 += 4;
-        const float v60 = w6[0];
-        const float v61 = w6[1];
-        const float v62 = w6[2];
-        const float v63 = w6[3];
+        const __fp16 v60 = w6[0];
+        const __fp16 v61 = w6[1];
+        const __fp16 v62 = w6[2];
+        const __fp16 v63 = w6[3];
         w6 += 4;
-        const float v70 = w7[0];
-        const float v71 = w7[1];
-        const float v72 = w7[2];
-        const float v73 = w7[3];
+        const __fp16 v70 = w7[0];
+        const __fp16 v71 = w7[1];
+        const __fp16 v72 = w7[2];
+        const __fp16 v73 = w7[3];
         w7 += 4;
-        const float v80 = w8[0];
-        const float v81 = w8[1];
-        const float v82 = w8[2];
-        const float v83 = w8[3];
+        const __fp16 v80 = w8[0];
+        const __fp16 v81 = w8[1];
+        const __fp16 v82 = w8[2];
+        const __fp16 v83 = w8[3];
         w8 += 4;
-        const float v90 = w9[0];
-        const float v91 = w9[1];
-        const float v92 = w9[2];
-        const float v93 = w9[3];
+        const __fp16 v90 = w9[0];
+        const __fp16 v91 = w9[1];
+        const __fp16 v92 = w9[2];
+        const __fp16 v93 = w9[3];
         w9 += 4;
-        const float v100 = w10[0];
-        const float v101 = w10[1];
-        const float v102 = w10[2];
-        const float v103 = w10[3];
+        const __fp16 v100 = w10[0];
+        const __fp16 v101 = w10[1];
+        const __fp16 v102 = w10[2];
+        const __fp16 v103 = w10[3];
         w10 += 4;
-        const float v110 = w11[0];
-        const float v111 = w11[1];
-        const float v112 = w11[2];
-        const float v113 = w11[3];
+        const __fp16 v110 = w11[0];
+        const __fp16 v111 = w11[1];
+        const __fp16 v112 = w11[2];
+        const __fp16 v113 = w11[3];
         w11 += 4;
-        const float v120 = w12[0];
-        const float v121 = w12[1];
-        const float v122 = w12[2];
-        const float v123 = w12[3];
+        const __fp16 v120 = w12[0];
+        const __fp16 v121 = w12[1];
+        const __fp16 v122 = w12[2];
+        const __fp16 v123 = w12[3];
         w12 += 4;
-        const float v130 = w13[0];
-        const float v131 = w13[1];
-        const float v132 = w13[2];
-        const float v133 = w13[3];
+        const __fp16 v130 = w13[0];
+        const __fp16 v131 = w13[1];
+        const __fp16 v132 = w13[2];
+        const __fp16 v133 = w13[3];
         w13 += 4;
-        const float v140 = w14[0];
-        const float v141 = w14[1];
-        const float v142 = w14[2];
-        const float v143 = w14[3];
+        const __fp16 v140 = w14[0];
+        const __fp16 v141 = w14[1];
+        const __fp16 v142 = w14[2];
+        const __fp16 v143 = w14[3];
         w14 += 4;
         out[0] = v00;
         out[1] = v10;
@@ -30986,39 +30986,39 @@ const void* params)
 
         // KC remainder of 1..3
         for (; k != 0; --k) {
-        const float v0 = *w0++;
+        const __fp16 v0 = *w0++;
         out[0] = v0;
-        const float v1 = *w1++;
+        const __fp16 v1 = *w1++;
         out[1] = v1;
-        const float v2 = *w2++;
+        const __fp16 v2 = *w2++;
         out[2] = v2;
-        const float v3 = *w3++;
+        const __fp16 v3 = *w3++;
         out[3] = v3;
-        const float v4 = *w4++;
+        const __fp16 v4 = *w4++;
         out[4] = v4;
-        const float v5 = *w5++;
+        const __fp16 v5 = *w5++;
         out[5] = v5;
-        const float v6 = *w6++;
+        const __fp16 v6 = *w6++;
         out[6] = v6;
-        const float v7 = *w7++;
+        const __fp16 v7 = *w7++;
         out[7] = v7;
-        const float v8 = *w8++;
+        const __fp16 v8 = *w8++;
         out[8] = v8;
-        const float v9 = *w9++;
+        const __fp16 v9 = *w9++;
         out[9] = v9;
-        const float v10 = *w10++;
+        const __fp16 v10 = *w10++;
         out[10] = v10;
-        const float v11 = *w11++;
+        const __fp16 v11 = *w11++;
         out[11] = v11;
-        const float v12 = *w12++;
+        const __fp16 v12 = *w12++;
         out[12] = v12;
-        const float v13 = *w13++;
+        const __fp16 v13 = *w13++;
         out[13] = v13;
-        const float v14 = *w14++;
+        const __fp16 v14 = *w14++;
         out[14] = v14;
         out += 16;
         }
-        out = (float*) ((uintptr_t) out + extra_bytes);
+        out = (__fp16*) ((uintptr_t) out + extra_bytes);
         }
         weights += nc * kc;
         } while (--g != 0);

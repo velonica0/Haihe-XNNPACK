@@ -172,6 +172,7 @@ DECLARE_F16_VSIGMOID_UKERNEL_FUNCTION(xnn_f16_vsigmoid_ukernel__neonfp16arith_rr
 DECLARE_F16_VSIGMOID_UKERNEL_FUNCTION(xnn_f16_vsigmoid_ukernel__neonfp16arith_rr2_p2_nr1recps_u56)
 DECLARE_F16_VSIGMOID_UKERNEL_FUNCTION(xnn_f16_vsigmoid_ukernel__neonfp16arith_rr2_p2_nr1recps_u64)
 
+DECLARE_F16_VSIGMOID_UKERNEL_FUNCTION(xnn_f16_vsigmoid_ukernel__rvv_u2v)
 
 #define DECLARE_F16_VSQR_UKERNEL_FUNCTION(fn_name) \
   XNN_INTERNAL void fn_name(                       \
@@ -689,6 +690,8 @@ DECLARE_F32_VHSWISH_UKERNEL_FUNCTION(xnn_f32_vhswish_ukernel__wasmsimd_u16)
 DECLARE_F32_VHSWISH_UKERNEL_FUNCTION(xnn_f32_vhswish_ukernel__wasm_u1)
 DECLARE_F32_VHSWISH_UKERNEL_FUNCTION(xnn_f32_vhswish_ukernel__wasm_u2)
 DECLARE_F32_VHSWISH_UKERNEL_FUNCTION(xnn_f32_vhswish_ukernel__wasm_u4)
+
+DECLARE_F32_VHSWISH_UKERNEL_FUNCTION(xnn_f32_vhswish_ukernel__rvv_u2v)
 
 DECLARE_F32_VHSWISH_UKERNEL_FUNCTION(xnn_f32_vhswish_ukernel__scalar_u1)
 DECLARE_F32_VHSWISH_UKERNEL_FUNCTION(xnn_f32_vhswish_ukernel__scalar_u2)

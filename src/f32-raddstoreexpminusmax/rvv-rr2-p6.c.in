@@ -7,7 +7,7 @@ $assert LMUL in [2, 4]
 $LMUL_HALF = {2: "1", 4: "2"}[LMUL]
 #include <assert.h>
 
-#include <riscv_vector.h>
+#include "riscv_v_071_fix.h"
 
 #include <xnnpack/common.h>
 #include <xnnpack/math.h>

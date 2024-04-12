@@ -503,9 +503,9 @@ DECLARE_INIT_QU8_HSWISH_PARAMS_FUNCTION(xnn_init_qu8_hswish_scalar_params)
   XNN_INTERNAL size_t fn_name(                                 \
     union xnn_f16_sigmoid_params params[XNN_MIN_ELEMENTS(1)]);
 
-#if XNN_ARCH_ARM || XNN_ARCH_ARM64
+#if XNN_ARCH_ARM || XNN_ARCH_ARM64 || XNN_ARCH_RISCV
   DECLARE_INIT_F16_SIGMOID_PARAMS_FUNCTION(xnn_init_f16_sigmoid_fp16arith_rr2_p2_params)
-#endif  // XNN_ARCH_ARM || XNN_ARCH_ARM64
+#endif  // XNN_ARCH_ARM || XNN_ARCH_ARM64 || XNN_ARCH_RISCV
 #if XNN_ARCH_X86 || XNN_ARCH_X86_64
   DECLARE_INIT_F16_SIGMOID_PARAMS_FUNCTION(xnn_init_f16_sigmoid_avx2_rr1_p2_params)
 #endif  // XNN_ARCH_X86 || XNN_ARCH_X86_64

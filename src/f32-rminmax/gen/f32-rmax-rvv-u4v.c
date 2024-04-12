@@ -10,7 +10,7 @@
 #include <assert.h>
 #include <math.h>
 
-#include <riscv_vector.h>
+#include "riscv_v_071_fix.h"
 
 #include <xnnpack/common.h>
 #include <xnnpack/intrinsics-polyfill.h>
@@ -41,6 +41,10 @@ void xnn_f32_rmax_ukernel__rvv_u4v(
     t0 = __riscv_vfmax_vv_f32m4_tu(t0, t0, vec, vl);
   }
 
-  vfloat32m1_t fmax = __riscv_vfmv_s_f_f32m1(-INFINITY, 1);
-  output[0] = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredmax_vs_f32m4_f32m1(t0, fmax, N));
+  //vfloat32m1_t fmax = __riscv_vfmv_s_f_f32m1(-INFINITY, 1);
+  //output[0] = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredmax_vs_f32m4_f32m1(t0, fmax, N));
+  vfloat32m1_t fmax, v0;
+  fmax = vfmv_s_f_f32m1(fmax, -INFINITY, 1);
+  v0 = vfredmax_vs_f32m4_f32m1(v0, t0, fmax, N);
+  output[0] = __riscv_vfmv_f_s_f32m1_f32(v0);
 }
