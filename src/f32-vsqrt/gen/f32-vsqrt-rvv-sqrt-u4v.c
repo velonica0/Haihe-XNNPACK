@@ -10,7 +10,7 @@
 #include <assert.h>
 #include <math.h>
 
-#include <riscv_vector.h>
+#include "riscv_v_071_fix.h"
 
 #include <xnnpack/common.h>
 #include <xnnpack/intrinsics-polyfill.h>

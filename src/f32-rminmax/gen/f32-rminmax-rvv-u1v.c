@@ -10,7 +10,7 @@
 #include <assert.h>
 #include <math.h>
 
-#include <riscv_vector.h>
+#include "riscv_v_071_fix.h"
 
 #include <xnnpack/common.h>
 #include <xnnpack/intrinsics-polyfill.h>
@@ -43,8 +43,15 @@ void xnn_f32_rminmax_ukernel__rvv_u1v(
     t1 = __riscv_vfmax_vv_f32m1_tu(t1, t1, vec, vl);
   }
 
-  vfloat32m1_t fmin = __riscv_vfmv_s_f_f32m1(INFINITY, 1);
-  vfloat32m1_t fmax = __riscv_vfmv_s_f_f32m1(-INFINITY, 1);
-  output[0] = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredmin_vs_f32m1_f32m1(t0, fmin, N));
-  output[1] = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredmax_vs_f32m1_f32m1(t1, fmax, N));
+  //vfloat32m1_t fmin = __riscv_vfmv_s_f_f32m1(INFINITY, 1);
+  //vfloat32m1_t fmax = __riscv_vfmv_s_f_f32m1(-INFINITY, 1);
+  //output[0] = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredmin_vs_f32m1_f32m1(t0, fmin, N));
+  //output[1] = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredmax_vs_f32m1_f32m1(t1, fmax, N));
+  vfloat32m1_t fmin, fmax, v0, v1;
+  fmin = vfmv_s_f_f32m1(fmin, INFINITY, 1);
+  fmax = vfmv_s_f_f32m1(fmax, -INFINITY, 1);
+  v0 = vfredmin_vs_f32m1_f32m1(v0, t0, fmin, N);
+  v1 = vfredmax_vs_f32m1_f32m1(v1, t1, fmax, N);
+  output[0] = __riscv_vfmv_f_s_f32m1_f32(v0);
+  output[1] = __riscv_vfmv_f_s_f32m1_f32(v1);
 }

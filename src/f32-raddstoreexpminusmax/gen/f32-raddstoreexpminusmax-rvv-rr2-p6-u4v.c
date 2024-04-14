@@ -9,7 +9,7 @@
 
 #include <assert.h>
 
-#include <riscv_vector.h>
+#include "riscv_v_071_fix.h"
 
 #include <xnnpack/common.h>
 #include <xnnpack/math.h>
@@ -137,6 +137,10 @@ void xnn_f32_raddstoreexpminusmax_ukernel__rvv_rr2_p6_u4v(
     vsum = __riscv_vfadd_vv_f32m4_tu(vsum, vsum, vexp, vl);
   } while(avl > 0);
 
-  vfloat32m1_t v0 = __riscv_vfmv_s_f_f32m1(0.0f, 1);
-  *sum = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m4_f32m1(vsum, v0, n));
+  //vfloat32m1_t v0 = __riscv_vfmv_s_f_f32m1(0.0f, 1);
+  //*sum = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m4_f32m1(vsum, v0, n));
+  vfloat32m1_t v0, v1;
+  v0 = vfmv_s_f_f32m1(v0, 0.0f, 1);
+  v1 = vfredosum_vs_f32m4_f32m1(v1, vsum, v0, n);
+  *sum = __riscv_vfmv_f_s_f32m1_f32(v1);
 }
