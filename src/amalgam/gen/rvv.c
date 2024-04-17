@@ -10,6 +10,7 @@
 
 //#include <riscv_vector.h>
 #include "riscv_v_071_fix.h"
+#include <fp16/fp16.h>
 
 #include <xnnpack/common.h>
 #include <xnnpack/intrinsics-polyfill.h>
@@ -403,9 +404,6 @@ void xnn_f32_vlrelu_ukernel__rvv_u8v(
     float* output,
     const union xnn_f32_lrelu_params params[restrict XNN_MIN_ELEMENTS(1)])
 {
-	//clock_t start_time, end_time;
-	//double cost_time;
-	//start_time = clock();
 	assert(batch != 0);
 	assert(batch % sizeof(float) == 0);
 	assert(input != NULL);
@@ -427,9 +425,6 @@ void xnn_f32_vlrelu_ukernel__rvv_u8v(
 		output += n;
 		size -= n;
 	} while (size > 0);
-	//end_time = clock();
-	//cost_time = ((double)(end_time -start_time)) * 1000 / CLOCKS_PER_SEC;
-    //printf("%s cost time %f ms\n", __func__, cost_time);
 }
 
 
@@ -460,12 +455,12 @@ void xnn_f32_gemm_ukernel_1x4__rvv_u1v(
 
 	do {
 		size_t vl = vsetvl_e32m1(nc);
-		vfloat32m1_t vacc = vle32_v_f32m1(w, vl);
-		w += vl;
+		vfloat32m1_t vacc = vle32_v_f32m1(w, 4);
+		w += 4;
 		for(size_t k = 0; k < kcl ; k++){
-			vfloat32m1_t vw = vle32_v_f32m1(w, vl);
-			w += vl;
-			vacc = vfmacc_vf_f32m1(vacc, *a0, vw, vl);
+			vfloat32m1_t vw = vle32_v_f32m1(w, 4);
+			w += 4;
+			vacc = vfmacc_vf_f32m1(vacc, *a0, vw, 4);
 			a0++;
 		}
 		vse32_v_f32m1(c0, vacc, vl);
@@ -576,18 +571,18 @@ void xnn_f32_gemm_ukernel_4x4__rvv_u1v(
 
     do {
         size_t vl = vsetvl_e32m1(nc); // vector length
-        vfloat32m1_t vacc0 = vle32_v_f32m1(w, vl); // 1st row count
-        vfloat32m1_t vacc1 = vle32_v_f32m1(w, vl); // 1st row count
-        vfloat32m1_t vacc2 = vle32_v_f32m1(w, vl); // 1st row count
-        vfloat32m1_t vacc3 = vle32_v_f32m1(w, vl); // 1st row count
-        w += vl;
+        vfloat32m1_t vacc0 = vle32_v_f32m1(w, 4); // 1st row count
+        vfloat32m1_t vacc1 = vle32_v_f32m1(w, 4); // 1st row count
+        vfloat32m1_t vacc2 = vle32_v_f32m1(w, 4); // 1st row count
+        vfloat32m1_t vacc3 = vle32_v_f32m1(w, 4); // 1st row count
+        w += 4;
         for(size_t k = 0; k < kcl ; k++){
-            vfloat32m1_t vw = vle32_v_f32m1(w, vl);
-            w += vl;
-            vacc0 = vfmacc_vf_f32m1(vacc0, *a0, vw, vl); // update 1st row count
-            vacc1 = vfmacc_vf_f32m1(vacc1, *a1, vw, vl); // update 1st row count
-            vacc2 = vfmacc_vf_f32m1(vacc2, *a2, vw, vl); // update 1st row count
-            vacc3 = vfmacc_vf_f32m1(vacc3, *a3, vw, vl); // update 1st row count
+            vfloat32m1_t vw = vle32_v_f32m1(w, 4);
+            w += 4;
+            vacc0 = vfmacc_vf_f32m1(vacc0, *a0, vw, 4); // update 1st row count
+            vacc1 = vfmacc_vf_f32m1(vacc1, *a1, vw, 4); // update 1st row count
+            vacc2 = vfmacc_vf_f32m1(vacc2, *a2, vw, 4); // update 1st row count
+            vacc3 = vfmacc_vf_f32m1(vacc3, *a3, vw, 4); // update 1st row count
             a0++;
             a1++;
             a2++;
@@ -927,11 +922,11 @@ void xnn_f32_igemm_ukernel_4x4__rvv_u1v(
 
     do {
         size_t vl = vsetvl_e32m1(nc); // vector length
-        vfloat32m1_t vacc0 = vle32_v_f32m1(w, vl); // 1st row count
-        vfloat32m1_t vacc1 = vle32_v_f32m1(w, vl); // 1st row count
-        vfloat32m1_t vacc2 = vle32_v_f32m1(w, vl); // 1st row count
-        vfloat32m1_t vacc3 = vle32_v_f32m1(w, vl); // 1st row count
-        w += vl;
+        vfloat32m1_t vacc0 = vle32_v_f32m1(w, 4); // 1st row count
+        vfloat32m1_t vacc1 = vle32_v_f32m1(w, 4); // 1st row count
+        vfloat32m1_t vacc2 = vle32_v_f32m1(w, 4); // 1st row count
+        vfloat32m1_t vacc3 = vle32_v_f32m1(w, 4); // 1st row count
+        w += 4;
 
         size_t p = ks;
         size_t kcl = kc / sizeof(float);
@@ -960,12 +955,12 @@ void xnn_f32_igemm_ukernel_4x4__rvv_u1v(
 
             size_t k = kc;
             for(size_t k = 0; k < kcl ; k++){
-                vfloat32m1_t vw = vle32_v_f32m1(w, vl);
-                w += vl;
-                vacc0 = vfmacc_vf_f32m1(vacc0, *a0, vw, vl); // update 1st row count
-                vacc1 = vfmacc_vf_f32m1(vacc1, *a1, vw, vl); // update 1st row count
-                vacc2 = vfmacc_vf_f32m1(vacc2, *a2, vw, vl); // update 1st row count
-                vacc3 = vfmacc_vf_f32m1(vacc3, *a3, vw, vl); // update 1st row count
+                vfloat32m1_t vw = vle32_v_f32m1(w, 4);
+                w += 4;
+                vacc0 = vfmacc_vf_f32m1(vacc0, *a0, vw, 4); // update 1st row count
+                vacc1 = vfmacc_vf_f32m1(vacc1, *a1, vw, 4); // update 1st row count
+                vacc2 = vfmacc_vf_f32m1(vacc2, *a2, vw, 4); // update 1st row count
+                vacc3 = vfmacc_vf_f32m1(vacc3, *a3, vw, 4); // update 1st row count
                 a0++;
                 a1++;
                 a2++;
@@ -1774,8 +1769,8 @@ void xnn_f32_igemm_ukernel_1x8__rvv_u2v(
 
     do {
         size_t vl = vsetvl_e32m2(nc); // vector length
-        vfloat32m2_t vacc0 = vle32_v_f32m2(w, vl); // 1st row count
-        w += vl;
+        vfloat32m2_t vacc0 = vle32_v_f32m2(w, 8); // 1st row count
+        w += 8;
 
         size_t p = ks;
         size_t kcl = kc / sizeof(float);
@@ -1789,9 +1784,9 @@ void xnn_f32_igemm_ukernel_1x8__rvv_u2v(
 
             size_t k = kc;
             for(size_t k = 0; k < kcl ; k++){
-                vfloat32m2_t vw = vle32_v_f32m2(w, vl);
-                w += vl;
-                vacc0 = vfmacc_vf_f32m2(vacc0, *a0, vw, vl); // update 1st row count
+                vfloat32m2_t vw = vle32_v_f32m2(w, 8);
+                w += 8;
+                vacc0 = vfmacc_vf_f32m2(vacc0, *a0, vw, 8); // update 1st row count
                 a0++;
             }
             p -= 1 * sizeof(void*);
@@ -1848,11 +1843,12 @@ void xnn_f32_igemm_ukernel_4x8__rvv_u2v(
 
     do {
         size_t vl = vsetvl_e32m2(nc); // vector length
-        vfloat32m2_t vacc0 = vle32_v_f32m2(w, vl); // 1st row count
-        vfloat32m2_t vacc1 = vle32_v_f32m2(w, vl); // 1st row count
-        vfloat32m2_t vacc2 = vle32_v_f32m2(w, vl); // 1st row count
-        vfloat32m2_t vacc3 = vle32_v_f32m2(w, vl); // 1st row count
-        w += vl;
+        vfloat32m2_t vacc0 = vle32_v_f32m2(w, 8); // 1st row count
+        vfloat32m2_t vacc1 = vle32_v_f32m2(w, 8); // 1st row count
+        vfloat32m2_t vacc2 = vle32_v_f32m2(w, 8); // 1st row count
+        vfloat32m2_t vacc3 = vle32_v_f32m2(w, 8); // 1st row count
+
+        w += 8;
 
         size_t p = ks;
         size_t kcl = kc / sizeof(float);
@@ -1881,12 +1877,12 @@ void xnn_f32_igemm_ukernel_4x8__rvv_u2v(
 
             size_t k = kc;
             for(size_t k = 0; k < kcl ; k++){
-                vfloat32m2_t vw = vle32_v_f32m2(w, vl);
-                w += vl;
-                vacc0 = vfmacc_vf_f32m2(vacc0, *a0, vw, vl); // update 1st row count
-                vacc1 = vfmacc_vf_f32m2(vacc1, *a1, vw, vl); // update 1st row count
-                vacc2 = vfmacc_vf_f32m2(vacc2, *a2, vw, vl); // update 1st row count
-                vacc3 = vfmacc_vf_f32m2(vacc3, *a3, vw, vl); // update 1st row count
+                vfloat32m2_t vw = vle32_v_f32m2(w, 8);
+                w += 8;
+                vacc0 = vfmacc_vf_f32m2(vacc0, *a0, vw, 8); // update 1st row count
+                vacc1 = vfmacc_vf_f32m2(vacc1, *a1, vw, 8); // update 1st row count
+                vacc2 = vfmacc_vf_f32m2(vacc2, *a2, vw, 8); // update 1st row count
+                vacc3 = vfmacc_vf_f32m2(vacc3, *a3, vw, 8); // update 1st row count
                 a0++;
                 a1++;
                 a2++;
@@ -1938,12 +1934,12 @@ void xnn_f32_gemm_ukernel_1x8__rvv_u2v(
 
     do {
         size_t vl = vsetvl_e32m2(nc);
-        vfloat32m2_t vacc = vle32_v_f32m2(w, vl);
-        w += vl;
+        vfloat32m2_t vacc = vle32_v_f32m2(w, 8);
+        w += 8;
         for(size_t k = 0; k < kcl ; k++){
-            vfloat32m2_t vw = vle32_v_f32m2(w, vl);
-            w += vl;
-            vacc = vfmacc_vf_f32m2(vacc, *a0, vw, vl);
+            vfloat32m2_t vw = vle32_v_f32m2(w, 8);
+            w += 8;
+            vacc = vfmacc_vf_f32m2(vacc, *a0, vw, 8);
             a0++;
         }
         vse32_v_f32m2(c0, vacc, vl);
@@ -2001,18 +1997,18 @@ void xnn_f32_gemm_ukernel_4x8__rvv_u2v(
 
     do {
         size_t vl = vsetvl_e32m2(nc); // vector length
-        vfloat32m2_t vacc0 = vle32_v_f32m2(w, vl); // 1st row count
-        vfloat32m2_t vacc1 = vle32_v_f32m2(w, vl); // 1st row count
-        vfloat32m2_t vacc2 = vle32_v_f32m2(w, vl); // 1st row count
-        vfloat32m2_t vacc3 = vle32_v_f32m2(w, vl); // 1st row count
-        w += vl;
+        vfloat32m2_t vacc0 = vle32_v_f32m2(w, 8); // 1st row count
+        vfloat32m2_t vacc1 = vle32_v_f32m2(w, 8); // 1st row count
+        vfloat32m2_t vacc2 = vle32_v_f32m2(w, 8); // 1st row count
+        vfloat32m2_t vacc3 = vle32_v_f32m2(w, 8); // 1st row count
+        w += 8;
         for(size_t k = 0; k < kcl ; k++){
-            vfloat32m2_t vw = vle32_v_f32m2(w, vl);
-            w += vl;
-            vacc0 = vfmacc_vf_f32m2(vacc0, *a0, vw, vl); // update 1st row count
-            vacc1 = vfmacc_vf_f32m2(vacc1, *a1, vw, vl); // update 1st row count
-            vacc2 = vfmacc_vf_f32m2(vacc2, *a2, vw, vl); // update 1st row count
-            vacc3 = vfmacc_vf_f32m2(vacc3, *a3, vw, vl); // update 1st row count
+            vfloat32m2_t vw = vle32_v_f32m2(w, 8);
+            w += 8;
+            vacc0 = vfmacc_vf_f32m2(vacc0, *a0, vw, 8); // update 1st row count
+            vacc1 = vfmacc_vf_f32m2(vacc1, *a1, vw, 8); // update 1st row count
+            vacc2 = vfmacc_vf_f32m2(vacc2, *a2, vw, 8); // update 1st row count
+            vacc3 = vfmacc_vf_f32m2(vacc3, *a3, vw, 8); // update 1st row count
             a0++;
             a1++;
             a2++;
@@ -2067,12 +2063,12 @@ void xnn_f32_gemm_minmax_ukernel_1x8__rvv_u2v(
     size_t kcl = kc / sizeof(float);
     do {
         size_t vl = vsetvl_e32m2(nc);
-        vfloat32m2_t vacc = vle32_v_f32m2(w, vl);
-        w += vl;
+        vfloat32m2_t vacc = vle32_v_f32m2(w, 8);
+        w += 8;
         for(size_t k = 0; k < kcl ; k++){
-            vfloat32m2_t vw = vle32_v_f32m2(w, vl);
-            w += vl;
-            vacc = vfmacc_vf_f32m2(vacc, *a0, vw, vl);
+            vfloat32m2_t vw = vle32_v_f32m2(w, 8);
+            w += 8;
+            vacc = vfmacc_vf_f32m2(vacc, *a0, vw, 8);
             a0++;
         }
         vacc = vfmax_vf_f32m2(vacc, vmin, vl);
@@ -2135,18 +2131,18 @@ void xnn_f32_gemm_minmax_ukernel_4x8__rvv_u2v(
 
     do {
         size_t vl = vsetvl_e32m2(nc); // vector length
-        vfloat32m2_t vacc0 = vle32_v_f32m2(w, vl); // 1st row count
-        vfloat32m2_t vacc1 = vle32_v_f32m2(w, vl); // 1st row count
-        vfloat32m2_t vacc2 = vle32_v_f32m2(w, vl); // 1st row count
-        vfloat32m2_t vacc3 = vle32_v_f32m2(w, vl); // 1st row count
-        w += vl;
+        vfloat32m2_t vacc0 = vle32_v_f32m2(w, 8); // 1st row count
+        vfloat32m2_t vacc1 = vle32_v_f32m2(w, 8); // 1st row count
+        vfloat32m2_t vacc2 = vle32_v_f32m2(w, 8); // 1st row count
+        vfloat32m2_t vacc3 = vle32_v_f32m2(w, 8); // 1st row count
+        w += 8;
         for(size_t k = 0; k < kcl ; k++){
-            vfloat32m2_t vw = vle32_v_f32m2(w, vl);
-            w += vl;
-            vacc0 = vfmacc_vf_f32m2(vacc0, *a0, vw, vl); // update 1st row count
-            vacc1 = vfmacc_vf_f32m2(vacc1, *a1, vw, vl); // update 1st row count
-            vacc2 = vfmacc_vf_f32m2(vacc2, *a2, vw, vl); // update 1st row count
-            vacc3 = vfmacc_vf_f32m2(vacc3, *a3, vw, vl); // update 1st row count
+            vfloat32m2_t vw = vle32_v_f32m2(w, 8);
+            w += 8;
+            vacc0 = vfmacc_vf_f32m2(vacc0, *a0, vw, 8); // update 1st row count
+            vacc1 = vfmacc_vf_f32m2(vacc1, *a1, vw, 8); // update 1st row count
+            vacc2 = vfmacc_vf_f32m2(vacc2, *a2, vw, 8); // update 1st row count
+            vacc3 = vfmacc_vf_f32m2(vacc3, *a3, vw, 8); // update 1st row count
             a0++;
             a1++;
             a2++;
@@ -2213,8 +2209,8 @@ void xnn_f32_igemm_minmax_ukernel_1x8__rvv_u2v(
 
     do {
         size_t vl = vsetvl_e32m2(nc); // vector length
-        vfloat32m2_t vacc0 = vle32_v_f32m2(w, vl); // 1st row count
-        w += vl;
+        vfloat32m2_t vacc0 = vle32_v_f32m2(w, 8); // 1st row count
+        w += 8;
 
         size_t p = ks;
         size_t kcl = kc / sizeof(float);
@@ -2228,9 +2224,9 @@ void xnn_f32_igemm_minmax_ukernel_1x8__rvv_u2v(
 
             size_t k = kc;
             for(size_t k = 0; k < kcl ; k++){
-                vfloat32m2_t vw = vle32_v_f32m2(w, vl);
-                w += vl;
-                vacc0 = vfmacc_vf_f32m2(vacc0, *a0, vw, vl); // update 1st row count
+                vfloat32m2_t vw = vle32_v_f32m2(w, 8);
+                w += 8;
+                vacc0 = vfmacc_vf_f32m2(vacc0, *a0, vw, 8); // update 1st row count
                 a0++;
             }
             p -= 1 * sizeof(void*);
@@ -2290,13 +2286,16 @@ void xnn_f32_igemm_minmax_ukernel_4x8__rvv_u2v(
     const float vmin = params->scalar.min;
     const float vmax = params->scalar.max;
 
+    // print someting for debug
+
+
     do {
         size_t vl = vsetvl_e32m2(nc); // vector length
-        vfloat32m2_t vacc0 = vle32_v_f32m2(w, vl); // 1st row count
-        vfloat32m2_t vacc1 = vle32_v_f32m2(w, vl); // 1st row count
-        vfloat32m2_t vacc2 = vle32_v_f32m2(w, vl); // 1st row count
-        vfloat32m2_t vacc3 = vle32_v_f32m2(w, vl); // 1st row count
-        w += vl;
+        vfloat32m2_t vacc0 = vle32_v_f32m2(w, 8); // 1st row count
+        vfloat32m2_t vacc1 = vle32_v_f32m2(w, 8); // 1st row count
+        vfloat32m2_t vacc2 = vle32_v_f32m2(w, 8); // 1st row count
+        vfloat32m2_t vacc3 = vle32_v_f32m2(w, 8); // 1st row count
+        w += 8;
 
         size_t p = ks;
         size_t kcl = kc / sizeof(float);
@@ -2325,12 +2324,12 @@ void xnn_f32_igemm_minmax_ukernel_4x8__rvv_u2v(
 
             size_t k = kc;
             for(size_t k = 0; k < kcl ; k++){
-                vfloat32m2_t vw = vle32_v_f32m2(w, vl);
-                w += vl;
-                vacc0 = vfmacc_vf_f32m2(vacc0, *a0, vw, vl); // update 1st row count
-                vacc1 = vfmacc_vf_f32m2(vacc1, *a1, vw, vl); // update 1st row count
-                vacc2 = vfmacc_vf_f32m2(vacc2, *a2, vw, vl); // update 1st row count
-                vacc3 = vfmacc_vf_f32m2(vacc3, *a3, vw, vl); // update 1st row count
+                vfloat32m2_t vw = vle32_v_f32m2(w, 8);
+                w += 8;
+                vacc0 = vfmacc_vf_f32m2(vacc0, *a0, vw, 8); // update 1st row count
+                vacc1 = vfmacc_vf_f32m2(vacc1, *a1, vw, 8); // update 1st row count
+                vacc2 = vfmacc_vf_f32m2(vacc2, *a2, vw, 8); // update 1st row count
+                vacc3 = vfmacc_vf_f32m2(vacc3, *a3, vw, 8); // update 1st row count
                 a0++;
                 a1++;
                 a2++;
@@ -2392,12 +2391,12 @@ void xnn_f32_gemm_relu_ukernel_1x8__rvv_u2v(
     size_t kcl = kc / sizeof(float);
     do {
         size_t vl = vsetvl_e32m2(nc);
-        vfloat32m2_t vacc = vle32_v_f32m2(w, vl);
-        w += vl;
+        vfloat32m2_t vacc = vle32_v_f32m2(w, 8);
+        w += 8;
         for(size_t k = 0; k < kcl ; k++){
-            vfloat32m2_t vw = vle32_v_f32m2(w, vl);
-            w += vl;
-            vacc = vfmacc_vf_f32m2(vacc, *a0, vw, vl);
+            vfloat32m2_t vw = vle32_v_f32m2(w, 8);
+            w += 8;
+            vacc = vfmacc_vf_f32m2(vacc, *a0, vw, 8);
             a0++;
         }
         vacc = vfmax_vf_f32m2(vacc, 0.0f, vl);
@@ -2456,18 +2455,18 @@ void xnn_f32_gemm_relu_ukernel_4x8__rvv_u2v(
 
     do {
         size_t vl = vsetvl_e32m2(nc); // vector length
-        vfloat32m2_t vacc0 = vle32_v_f32m2(w, vl); // 1st row count
-        vfloat32m2_t vacc1 = vle32_v_f32m2(w, vl); // 1st row count
-        vfloat32m2_t vacc2 = vle32_v_f32m2(w, vl); // 1st row count
-        vfloat32m2_t vacc3 = vle32_v_f32m2(w, vl); // 1st row count
-        w += vl;
+        vfloat32m2_t vacc0 = vle32_v_f32m2(w, 8); // 1st row count
+        vfloat32m2_t vacc1 = vle32_v_f32m2(w, 8); // 1st row count
+        vfloat32m2_t vacc2 = vle32_v_f32m2(w, 8); // 1st row count
+        vfloat32m2_t vacc3 = vle32_v_f32m2(w, 8); // 1st row count
+        w += 8;
         for(size_t k = 0; k < kcl ; k++){
-            vfloat32m2_t vw = vle32_v_f32m2(w, vl);
-            w += vl;
-            vacc0 = vfmacc_vf_f32m2(vacc0, *a0, vw, vl); // update 1st row count
-            vacc1 = vfmacc_vf_f32m2(vacc1, *a1, vw, vl); // update 1st row count
-            vacc2 = vfmacc_vf_f32m2(vacc2, *a2, vw, vl); // update 1st row count
-            vacc3 = vfmacc_vf_f32m2(vacc3, *a3, vw, vl); // update 1st row count
+            vfloat32m2_t vw = vle32_v_f32m2(w, 8);
+            w += 8;
+            vacc0 = vfmacc_vf_f32m2(vacc0, *a0, vw, 8); // update 1st row count
+            vacc1 = vfmacc_vf_f32m2(vacc1, *a1, vw, 8); // update 1st row count
+            vacc2 = vfmacc_vf_f32m2(vacc2, *a2, vw, 8); // update 1st row count
+            vacc3 = vfmacc_vf_f32m2(vacc3, *a3, vw, 8); // update 1st row count
             a0++;
             a1++;
             a2++;
@@ -2526,8 +2525,8 @@ void xnn_f32_igemm_relu_ukernel_1x8__rvv_u2v(
 
     do {
         size_t vl = vsetvl_e32m2(nc); // vector length
-        vfloat32m2_t vacc0 = vle32_v_f32m2(w, vl); // 1st row count
-        w += vl;
+        vfloat32m2_t vacc0 = vle32_v_f32m2(w, 8); // 1st row count
+        w += 8;
 
         size_t p = ks;
         size_t kcl = kc / sizeof(float);
@@ -2541,9 +2540,9 @@ void xnn_f32_igemm_relu_ukernel_1x8__rvv_u2v(
 
             size_t k = kc;
             for(size_t k = 0; k < kcl ; k++){
-                vfloat32m2_t vw = vle32_v_f32m2(w, vl);
-                w += vl;
-                vacc0 = vfmacc_vf_f32m2(vacc0, *a0, vw, vl); // update 1st row count
+                vfloat32m2_t vw = vle32_v_f32m2(w, 8);
+                w += 8;
+                vacc0 = vfmacc_vf_f32m2(vacc0, *a0, vw, 8); // update 1st row count
                 a0++;
             }
             p -= 1 * sizeof(void*);
@@ -2601,11 +2600,11 @@ void xnn_f32_igemm_relu_ukernel_4x8__rvv_u2v(
 
     do {
         size_t vl = vsetvl_e32m2(nc); // vector length
-        vfloat32m2_t vacc0 = vle32_v_f32m2(w, vl); // 1st row count
-        vfloat32m2_t vacc1 = vle32_v_f32m2(w, vl); // 1st row count
-        vfloat32m2_t vacc2 = vle32_v_f32m2(w, vl); // 1st row count
-        vfloat32m2_t vacc3 = vle32_v_f32m2(w, vl); // 1st row count
-        w += vl;
+        vfloat32m2_t vacc0 = vle32_v_f32m2(w, 8); // 1st row count
+        vfloat32m2_t vacc1 = vle32_v_f32m2(w, 8); // 1st row count
+        vfloat32m2_t vacc2 = vle32_v_f32m2(w, 8); // 1st row count
+        vfloat32m2_t vacc3 = vle32_v_f32m2(w, 8); // 1st row count
+        w += 8;
 
         size_t p = ks;
         size_t kcl = kc / sizeof(float);
@@ -2634,12 +2633,12 @@ void xnn_f32_igemm_relu_ukernel_4x8__rvv_u2v(
 
             size_t k = kc;
             for(size_t k = 0; k < kcl ; k++){
-                vfloat32m2_t vw = vle32_v_f32m2(w, vl);
-                w += vl;
-                vacc0 = vfmacc_vf_f32m2(vacc0, *a0, vw, vl); // update 1st row count
-                vacc1 = vfmacc_vf_f32m2(vacc1, *a1, vw, vl); // update 1st row count
-                vacc2 = vfmacc_vf_f32m2(vacc2, *a2, vw, vl); // update 1st row count
-                vacc3 = vfmacc_vf_f32m2(vacc3, *a3, vw, vl); // update 1st row count
+                vfloat32m2_t vw = vle32_v_f32m2(w, 8);
+                w += 8;
+                vacc0 = vfmacc_vf_f32m2(vacc0, *a0, vw, 8); // update 1st row count
+                vacc1 = vfmacc_vf_f32m2(vacc1, *a1, vw, 8); // update 1st row count
+                vacc2 = vfmacc_vf_f32m2(vacc2, *a2, vw, 8); // update 1st row count
+                vacc3 = vfmacc_vf_f32m2(vacc3, *a3, vw, 8); // update 1st row count
                 a0++;
                 a1++;
                 a2++;
@@ -2710,11 +2709,11 @@ void xnn_f32_igemm_ukernel_4x16__rvv_u4v(
 
     do {
         size_t vl = vsetvl_e32m4(nc); // vector length
-        vfloat32m4_t vacc0 = vle32_v_f32m4(w, vl); // 1st row count
-        vfloat32m4_t vacc1 = vle32_v_f32m4(w, vl); // 1st row count
-        vfloat32m4_t vacc2 = vle32_v_f32m4(w, vl); // 1st row count
-        vfloat32m4_t vacc3 = vle32_v_f32m4(w, vl); // 1st row count
-        w += vl;
+        vfloat32m4_t vacc0 = vle32_v_f32m4(w, 16); // 1st row count
+        vfloat32m4_t vacc1 = vle32_v_f32m4(w, 16); // 1st row count
+        vfloat32m4_t vacc2 = vle32_v_f32m4(w, 16); // 1st row count
+        vfloat32m4_t vacc3 = vle32_v_f32m4(w, 16); // 1st row count
+        w += 16;
 
         size_t p = ks;
         size_t kcl = kc / sizeof(float);
@@ -2743,12 +2742,12 @@ void xnn_f32_igemm_ukernel_4x16__rvv_u4v(
 
             size_t k = kc;
             for(size_t k = 0; k < kcl ; k++){
-                vfloat32m4_t vw = vle32_v_f32m4(w, vl);
-                w += vl;
-                vacc0 = vfmacc_vf_f32m4(vacc0, *a0, vw, vl); // update 1st row count
-                vacc1 = vfmacc_vf_f32m4(vacc1, *a1, vw, vl); // update 1st row count
-                vacc2 = vfmacc_vf_f32m4(vacc2, *a2, vw, vl); // update 1st row count
-                vacc3 = vfmacc_vf_f32m4(vacc3, *a3, vw, vl); // update 1st row count
+                vfloat32m4_t vw = vle32_v_f32m4(w, 16);
+                w += 16;
+                vacc0 = vfmacc_vf_f32m4(vacc0, *a0, vw, 16); // update 1st row count
+                vacc1 = vfmacc_vf_f32m4(vacc1, *a1, vw, 16); // update 1st row count
+                vacc2 = vfmacc_vf_f32m4(vacc2, *a2, vw, 16); // update 1st row count
+                vacc3 = vfmacc_vf_f32m4(vacc3, *a3, vw, 16); // update 1st row count
                 a0++;
                 a1++;
                 a2++;
@@ -2800,12 +2799,12 @@ void xnn_f32_gemm_ukernel_1x16__rvv_u4v(
 
     do {
         size_t vl = vsetvl_e32m4(nc);
-        vfloat32m4_t vacc = vle32_v_f32m4(w, vl);
-        w += vl;
+        vfloat32m4_t vacc = vle32_v_f32m4(w, 16);
+        w += 16;
         for(size_t k = 0; k < kcl ; k++){
-            vfloat32m4_t vw = vle32_v_f32m4(w, vl);
-            w += vl;
-            vacc = vfmacc_vf_f32m4(vacc, *a0, vw, vl);
+            vfloat32m4_t vw = vle32_v_f32m4(w, 16);
+            w += 16;
+            vacc = vfmacc_vf_f32m4(vacc, *a0, vw, 16);
             a0++;
         }
         vse32_v_f32m4(c0, vacc, vl);
@@ -2863,18 +2862,18 @@ void xnn_f32_gemm_ukernel_4x16__rvv_u4v(
 
     do {
         size_t vl = vsetvl_e32m4(nc); // vector length
-        vfloat32m4_t vacc0 = vle32_v_f32m4(w, vl); // 1st row count
-        vfloat32m4_t vacc1 = vle32_v_f32m4(w, vl); // 1st row count
-        vfloat32m4_t vacc2 = vle32_v_f32m4(w, vl); // 1st row count
-        vfloat32m4_t vacc3 = vle32_v_f32m4(w, vl); // 1st row count
-        w += vl;
+        vfloat32m4_t vacc0 = vle32_v_f32m4(w, 16); // 1st row count
+        vfloat32m4_t vacc1 = vle32_v_f32m4(w, 16); // 1st row count
+        vfloat32m4_t vacc2 = vle32_v_f32m4(w, 16); // 1st row count
+        vfloat32m4_t vacc3 = vle32_v_f32m4(w, 16); // 1st row count
+        w += 16;
         for(size_t k = 0; k < kcl ; k++){
-            vfloat32m4_t vw = vle32_v_f32m4(w, vl);
-            w += vl;
-            vacc0 = vfmacc_vf_f32m4(vacc0, *a0, vw, vl); // update 1st row count
-            vacc1 = vfmacc_vf_f32m4(vacc1, *a1, vw, vl); // update 1st row count
-            vacc2 = vfmacc_vf_f32m4(vacc2, *a2, vw, vl); // update 1st row count
-            vacc3 = vfmacc_vf_f32m4(vacc3, *a3, vw, vl); // update 1st row count
+            vfloat32m4_t vw = vle32_v_f32m4(w, 16);
+            w += 16;
+            vacc0 = vfmacc_vf_f32m4(vacc0, *a0, vw, 16); // update 1st row count
+            vacc1 = vfmacc_vf_f32m4(vacc1, *a1, vw, 16); // update 1st row count
+            vacc2 = vfmacc_vf_f32m4(vacc2, *a2, vw, 16); // update 1st row count
+            vacc3 = vfmacc_vf_f32m4(vacc3, *a3, vw, 16); // update 1st row count
             a0++;
             a1++;
             a2++;
@@ -3137,20 +3136,22 @@ void xnn_f16_gemm_ukernel_1x16__rvv_u2v(
 
     const __fp16* a0 = a;
     __fp16* c0 = c;
+    __fp16* hw = (__fp16*)w;
+
     size_t kcl = kc / sizeof(__fp16);
 
     do {
         size_t vl = vsetvl_e16m2(nc);
-        vfloat16m2_t vacc = vle16_v_f16m2(w, vl);
-        w += vl;
+        vfloat16m2_t vacc = vle16_v_f16m2(hw, 16);
+        hw += 16;
         for(size_t k = 0; k < kcl ; k++){
-            vfloat16m2_t vw = vle16_v_f16m2(w, vl);
-            w += vl;
-            vacc = vfmacc_vf_f16m2(vacc, *a0, vw, vl);
+            vfloat16m2_t vw = vle16_v_f16m2(hw, 16);
+            hw += 16;
+            vacc = vfmacc_vf_f16m2(vacc, *a0, vw, 16);
             a0++;
         }
         vse16_v_f16m2(c0, vacc, vl);
-        if(nc >= 4){
+        if(nc >= 16){
             c0 = (__fp16*) ((uintptr_t) c0 + cn_stride);
             a0 = (const void*) ((uintptr_t) a0 - kc);
         }
@@ -3200,22 +3201,25 @@ void xnn_f16_gemm_ukernel_4x16__rvv_u2v(
         c3 = c2;
     }
 
+    __fp16* hw = (__fp16*)w;
+
+
     size_t kcl = kc / sizeof(__fp16);
 
     do {
         size_t vl = vsetvl_e16m2(nc); // vector length
-        vfloat16m2_t vacc0 = vle16_v_f16m2(w, vl); // 1st row count
-        vfloat16m2_t vacc1 = vle16_v_f16m2(w, vl); // 1st row count
-        vfloat16m2_t vacc2 = vle16_v_f16m2(w, vl); // 1st row count
-        vfloat16m2_t vacc3 = vle16_v_f16m2(w, vl); // 1st row count
-        w += vl;
+        vfloat16m2_t vacc0 = vle16_v_f16m2(hw, 16); // 1st row count
+        vfloat16m2_t vacc1 = vle16_v_f16m2(hw, 16); // 1st row count
+        vfloat16m2_t vacc2 = vle16_v_f16m2(hw, 16); // 1st row count
+        vfloat16m2_t vacc3 = vle16_v_f16m2(hw, 16); // 1st row count
+        hw += 16;
         for(size_t k = 0; k < kcl ; k++){
-            vfloat16m2_t vw = vle16_v_f16m2(w, vl);
-            w += vl;
-            vacc0 = vfmacc_vf_f16m2(vacc0, *a0, vw, vl); // update 1st row count
-            vacc1 = vfmacc_vf_f16m2(vacc1, *a1, vw, vl); // update 1st row count
-            vacc2 = vfmacc_vf_f16m2(vacc2, *a2, vw, vl); // update 1st row count
-            vacc3 = vfmacc_vf_f16m2(vacc3, *a3, vw, vl); // update 1st row count
+            vfloat16m2_t vw = vle16_v_f16m2(hw, 16);
+            hw += 16;
+            vacc0 = vfmacc_vf_f16m2(vacc0, *a0, vw, 16); // update 1st row count
+            vacc1 = vfmacc_vf_f16m2(vacc1, *a1, vw, 16); // update 1st row count
+            vacc2 = vfmacc_vf_f16m2(vacc2, *a2, vw, 16); // update 1st row count
+            vacc3 = vfmacc_vf_f16m2(vacc3, *a3, vw, 16); // update 1st row count
             a0++;
             a1++;
             a2++;
@@ -3225,7 +3229,7 @@ void xnn_f16_gemm_ukernel_4x16__rvv_u2v(
         vse16_v_f16m2(c1, vacc1, vl); // store 1st row result
         vse16_v_f16m2(c2, vacc2, vl); // store 1st row result
         vse16_v_f16m2(c3, vacc3, vl); // store 1st row result
-        if(nc >= 4){
+        if(nc >= 16){
             c0 = (__fp16*) ((uintptr_t) c0 + cn_stride); // update 1st row matrix C pointer
             c1 = (__fp16*) ((uintptr_t) c1 + cn_stride); // update 1st row matrix C pointer
             c2 = (__fp16*) ((uintptr_t) c2 + cn_stride); // update 1st row matrix C pointer
@@ -3234,6 +3238,68 @@ void xnn_f16_gemm_ukernel_4x16__rvv_u2v(
             a1 = (const void*) ((uintptr_t) a1 - kc); // update 1st row matrix A pointer
             a2 = (const void*) ((uintptr_t) a2 - kc); // update 1st row matrix A pointer
             a3 = (const void*) ((uintptr_t) a3 - kc); // update 1st row matrix A pointer
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+void xnn_f16_igemm_ukernel_1x16__rvv_u2v(
+        size_t mr,
+        size_t nc,
+        size_t kc,
+        size_t ks,
+        const void** restrict a,
+        const void* restrict w,
+        void* restrict c,
+        size_t cm_stride,
+        size_t cn_stride,
+        size_t a_offset,
+        const void* zero,
+        const union xnn_f16_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 1);
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(ks != 0);
+    assert(ks % (1 * sizeof(void*)) == 0);
+    assert(a_offset % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    float* c0 = c;
+
+    do {
+        size_t vl = vsetvl_e16m2(nc); // vector length
+        vfloat16m2_t vacc0 = vle16_v_f16m2(w, 16); // 1st row count
+        w += 16;
+
+        size_t p = ks;
+        size_t kcl = kc / sizeof(float);
+        do {
+            const float* restrict a0 = a[0];
+            assert(a0 != NULL);
+            if XNN_UNPREDICTABLE(a0 != zero) {
+                a0 = (const float*) ((uintptr_t) a0 + a_offset);
+            }
+            a += 1;
+
+            size_t k = kc;
+            for(size_t k = 0; k < kcl ; k++){
+                vfloat16m2_t vw = vle16_v_f16m2(w, 16);
+                w += 16;
+                vacc0 = vfmacc_vf_f16m2(vacc0, *a0, vw, 16); // update 1st row count
+                a0++;
+            }
+            p -= 1 * sizeof(void*);
+        } while (p != 0);
+        vse16_v_f16m2(c0, vacc0, vl); // store 1st row result
+
+        if XNN_LIKELY(nc >= 16) {
+            c0 = (float*) ((uintptr_t) c0 + cn_stride);
+            a = (const float**restrict) ((uintptr_t) a - ks);
         }
         nc -= vl;
     } while (nc != 0);
@@ -3278,13 +3344,14 @@ void xnn_f16_igemm_ukernel_4x16__rvv_u2v(
         c3 = c2;
     }
 
+
     do {
         size_t vl = vsetvl_e16m2(nc); // vector length
-        vfloat16m2_t vacc0 = vle16_v_f16m2(w, vl); // 1st row count
-        vfloat16m2_t vacc1 = vle16_v_f16m2(w, vl); // 1st row count
-        vfloat16m2_t vacc2 = vle16_v_f16m2(w, vl); // 1st row count
-        vfloat16m2_t vacc3 = vle16_v_f16m2(w, vl); // 1st row count
-        w += vl;
+        vfloat16m2_t vacc0 = vle16_v_f16m2(w, 16); // 1st row count
+        vfloat16m2_t vacc1 = vle16_v_f16m2(w, 16); // 1st row count
+        vfloat16m2_t vacc2 = vle16_v_f16m2(w, 16); // 1st row count
+        vfloat16m2_t vacc3 = vle16_v_f16m2(w, 16); // 1st row count
+        w += 16;
 
         size_t p = ks;
         size_t kcl = kc / sizeof(__fp16);
@@ -3313,12 +3380,12 @@ void xnn_f16_igemm_ukernel_4x16__rvv_u2v(
 
             size_t k = kc;
             for(size_t k = 0; k < kcl ; k++){
-                vfloat16m2_t vw = vle16_v_f16m2(w, vl);
-                w += vl;
-                vacc0 = vfmacc_vf_f16m2(vacc0, *a0, vw, vl); // update 1st row count
-                vacc1 = vfmacc_vf_f16m2(vacc1, *a1, vw, vl); // update 1st row count
-                vacc2 = vfmacc_vf_f16m2(vacc2, *a2, vw, vl); // update 1st row count
-                vacc3 = vfmacc_vf_f16m2(vacc3, *a3, vw, vl); // update 1st row count
+                vfloat16m2_t vw = vle16_v_f16m2(w, 16);
+                w += 16;
+                vacc0 = vfmacc_vf_f16m2(vacc0, *a0, vw, 16); // update 1st row count
+                vacc1 = vfmacc_vf_f16m2(vacc1, *a1, vw, 16); // update 1st row count
+                vacc2 = vfmacc_vf_f16m2(vacc2, *a2, vw, 16); // update 1st row count
+                vacc3 = vfmacc_vf_f16m2(vacc3, *a3, vw, 16); // update 1st row count
                 a0++;
                 a1++;
                 a2++;
@@ -3331,7 +3398,349 @@ void xnn_f16_igemm_ukernel_4x16__rvv_u2v(
         vse16_v_f16m2(c2, vacc2, vl); // store 1st row result
         vse16_v_f16m2(c3, vacc3, vl); // store 1st row result
 
-        if XNN_LIKELY(nc >= 4) {
+        if XNN_LIKELY(nc >= 16) {
+            c3 = (__fp16*) ((uintptr_t) c3 + cn_stride);
+            c2 = (__fp16*) ((uintptr_t) c2 + cn_stride);
+            c1 = (__fp16*) ((uintptr_t) c1 + cn_stride);
+            c0 = (__fp16*) ((uintptr_t) c0 + cn_stride);
+
+            a = (const void**restrict) ((uintptr_t) a - ks);
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+void xnn_f16_gemm_minmax_ukernel_1x16__rvv_u2v(
+        size_t mr,
+        size_t nc,
+        size_t kc,
+        const void* restrict a,
+        size_t a_stride,
+        const void* restrict w,
+        void* restrict c,
+        size_t cm_stride,
+        size_t cn_stride,
+        const union xnn_f16_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 1);
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(__fp16) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    const __fp16* a0 = a;
+    __fp16* c0 = c;
+    size_t kcl = kc / sizeof(__fp16);
+
+    const __fp16 vmin, vmax;
+    memcpy(&vmin, &params->fp16arith.min, sizeof(vmin));
+    memcpy(&vmax, &params->fp16arith.max, sizeof(vmax));
+
+    do {
+        size_t vl = vsetvl_e16m2(nc);
+        vfloat16m2_t vacc = vle16_v_f16m2(w, 16);
+        w += 16;
+        for(size_t k = 0; k < kcl ; k++){
+            vfloat16m2_t vw = vle16_v_f16m2(w, 16);
+            w += 16;
+            vacc = vfmacc_vf_f16m2(vacc, *a0, vw, 16);
+            a0++;
+        }
+        vacc = vfmax_vf_f16m2(vacc, vmin, vl);
+        vacc = vfmin_vf_f16m2(vacc, vmax, vl);
+        vse16_v_f16m2(c0, vacc, vl);
+        if(nc >= 16){
+            c0 = (__fp16*) ((uintptr_t) c0 + cn_stride);
+            a0 = (const void*) ((uintptr_t) a0 - kc);
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+void xnn_f16_gemm_minmax_ukernel_4x16__rvv_u2v(
+        size_t mr,
+        size_t nc,
+        size_t kc,
+        const void* restrict a,
+        size_t a_stride,
+        const void* restrict w,
+        void* restrict c,
+        size_t cm_stride,
+        size_t cn_stride,
+        const union xnn_f16_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 4); // max process 1 row
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(__fp16) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    const __fp16* a0 = a;
+    __fp16* c0 = c;
+    const __fp16* a1 = (const __fp16*) ((uintptr_t) a0 + a_stride);
+    __fp16* c1 = (__fp16*) ((uintptr_t) c0 + cm_stride);
+    if XNN_UNPREDICTABLE(mr < 2) {
+        a1 = a0;
+        c1 = c0;
+    }
+    const __fp16* a2 = (const __fp16*) ((uintptr_t) a1 + a_stride);
+    __fp16* c2 = (__fp16*) ((uintptr_t) c1 + cm_stride);
+    if XNN_UNPREDICTABLE(mr <= 2) {
+        a2 = a1;
+        c2 = c1;
+    }
+    const __fp16* a3 = (const __fp16*) ((uintptr_t) a2 + a_stride);
+    __fp16* c3 = (__fp16*) ((uintptr_t) c2 + cm_stride);
+    if XNN_UNPREDICTABLE(mr != 4) {
+        a3 = a2;
+        c3 = c2;
+    }
+
+    const __fp16 vmin, vmax;
+    memcpy(&vmin, &params->fp16arith.min, sizeof(vmin));
+    memcpy(&vmax, &params->fp16arith.max, sizeof(vmax));
+
+    __fp16* hw = (__fp16*)w;
+
+
+    size_t kcl = kc / sizeof(__fp16);
+
+    do {
+        size_t vl = vsetvl_e16m2(nc); // vector length
+        vfloat16m2_t vacc0 = vle16_v_f16m2(hw, 16); // 1st row count
+        vfloat16m2_t vacc1 = vle16_v_f16m2(hw, 16); // 1st row count
+        vfloat16m2_t vacc2 = vle16_v_f16m2(hw, 16); // 1st row count
+        vfloat16m2_t vacc3 = vle16_v_f16m2(hw, 16); // 1st row count
+        hw += 16;
+        for(size_t k = 0; k < kcl ; k++){
+            vfloat16m2_t vw = vle16_v_f16m2(hw, 16);
+            hw += 16;
+            vacc0 = vfmacc_vf_f16m2(vacc0, *a0, vw, 16); // update 1st row count
+            vacc1 = vfmacc_vf_f16m2(vacc1, *a1, vw, 16); // update 1st row count
+            vacc2 = vfmacc_vf_f16m2(vacc2, *a2, vw, 16); // update 1st row count
+            vacc3 = vfmacc_vf_f16m2(vacc3, *a3, vw, 16); // update 1st row count
+            a0++;
+            a1++;
+            a2++;
+            a3++;
+        }
+        vacc0 = vfmax_vf_f16m2(vacc0, vmin, vl);
+        vacc1 = vfmax_vf_f16m2(vacc1, vmin, vl);
+        vacc2 = vfmax_vf_f16m2(vacc2, vmin, vl);
+        vacc3 = vfmax_vf_f16m2(vacc3, vmin, vl);
+
+        vacc0 = vfmin_vf_f16m2(vacc0, vmax, vl);
+        vacc1 = vfmin_vf_f16m2(vacc1, vmax, vl);
+        vacc2 = vfmin_vf_f16m2(vacc2, vmax, vl);
+        vacc3 = vfmin_vf_f16m2(vacc3, vmax, vl);
+
+        vse16_v_f16m2(c0, vacc0, vl); // store 1st row result
+        vse16_v_f16m2(c1, vacc1, vl); // store 1st row result
+        vse16_v_f16m2(c2, vacc2, vl); // store 1st row result
+        vse16_v_f16m2(c3, vacc3, vl); // store 1st row result
+        if(nc >= 16){
+            c0 = (__fp16*) ((uintptr_t) c0 + cn_stride); // update 1st row matrix C pointer
+            c1 = (__fp16*) ((uintptr_t) c1 + cn_stride); // update 1st row matrix C pointer
+            c2 = (__fp16*) ((uintptr_t) c2 + cn_stride); // update 1st row matrix C pointer
+            c3 = (__fp16*) ((uintptr_t) c3 + cn_stride); // update 1st row matrix C pointer
+            a0 = (const void*) ((uintptr_t) a0 - kc); // update 1st row matrix A pointer
+            a1 = (const void*) ((uintptr_t) a1 - kc); // update 1st row matrix A pointer
+            a2 = (const void*) ((uintptr_t) a2 - kc); // update 1st row matrix A pointer
+            a3 = (const void*) ((uintptr_t) a3 - kc); // update 1st row matrix A pointer
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+void xnn_f16_igemm_minmax_ukernel_1x16__rvv_u2v(
+        size_t mr,
+        size_t nc,
+        size_t kc,
+        size_t ks,
+        const void** restrict a,
+        const void* restrict w,
+        void* restrict c,
+        size_t cm_stride,
+        size_t cn_stride,
+        size_t a_offset,
+        const void* zero,
+        const union xnn_f16_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 1);
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(__fp16) == 0);
+    assert(ks != 0);
+    assert(ks % (1 * sizeof(void*)) == 0);
+    assert(a_offset % sizeof(__fp16) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    __fp16* c0 = c;
+
+    const __fp16 vmin, vmax;
+    memcpy(&vmin, &params->fp16arith.min, sizeof(vmin));
+    memcpy(&vmax, &params->fp16arith.max, sizeof(vmax));
+
+    __fp16* hw = (__fp16*)w;
+
+
+    do {
+        size_t vl = vsetvl_e16m2(nc); // vector length
+        vfloat16m2_t vacc0 = vle16_v_f16m2(hw, 16); // 1st row count
+        hw += 16;
+
+        size_t p = ks;
+        size_t kcl = kc / sizeof(float);
+        do {
+            const float* restrict a0 = a[0];
+            assert(a0 != NULL);
+            if XNN_UNPREDICTABLE(a0 != zero) {
+                a0 = (const float*) ((uintptr_t) a0 + a_offset);
+            }
+            a += 1;
+
+            size_t k = kc;
+            for(size_t k = 0; k < kcl ; k++){
+                vfloat16m2_t vw = vle16_v_f16m2(hw, 16);
+                hw += 16;
+                vacc0 = vfmacc_vf_f16m2(vacc0, *a0, vw, 16); // update 1st row count
+                a0++;
+            }
+            p -= 1 * sizeof(void*);
+        } while (p != 0);
+        vacc0 = vfmax_vf_f16m2(vacc0, vmin, vl);
+        vacc0 = vfmin_vf_f16m2(vacc0, vmax, vl);
+        vse16_v_f16m2(c0, vacc0, vl); // store 1st row result
+
+        if XNN_LIKELY(nc >= 16) {
+            c0 = (float*) ((uintptr_t) c0 + cn_stride);
+            a = (const float**restrict) ((uintptr_t) a - ks);
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+void xnn_f16_igemm_minmax_ukernel_4x16__rvv_u2v(
+        size_t mr,
+        size_t nc,
+        size_t kc,
+        size_t ks,
+        const void** restrict a,
+        const void* restrict w,
+        void* restrict c,
+        size_t cm_stride,
+        size_t cn_stride,
+        size_t a_offset,const void* zero,//todo
+        const union xnn_f16_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 4);
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(__fp16) == 0);
+    assert(ks != 0);
+    assert(ks % (4 * sizeof(void*)) == 0);
+    assert(a_offset % sizeof(__fp16) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    __fp16* c0 = c;
+    __fp16* c1 = (__fp16*) ((uintptr_t) c0 + cm_stride);
+    if XNN_UNPREDICTABLE(mr < 2) {
+        c1 = c0;
+    }
+    __fp16* c2 = (__fp16*) ((uintptr_t) c1 + cm_stride);
+    if XNN_UNPREDICTABLE(mr <= 2) {
+        c2 = c1;
+    }
+    __fp16* c3 = (__fp16*) ((uintptr_t) c2 + cm_stride);
+    if XNN_UNPREDICTABLE(mr != 4) {
+        c3 = c2;
+    }
+
+    const __fp16 vmin, vmax;
+    memcpy(&vmin, &params->fp16arith.min, sizeof(vmin));
+    memcpy(&vmax, &params->fp16arith.max, sizeof(vmax));
+
+    __fp16* hw = (__fp16*)w;
+
+
+    do {
+        size_t vl = vsetvl_e16m2(nc); // vector length
+        vfloat16m2_t vacc0 = vle16_v_f16m2(hw, 16); // 1st row count
+        vfloat16m2_t vacc1 = vle16_v_f16m2(hw, 16); // 1st row count
+        vfloat16m2_t vacc2 = vle16_v_f16m2(hw, 16); // 1st row count
+        vfloat16m2_t vacc3 = vle16_v_f16m2(hw, 16); // 1st row count
+
+        hw += 16;
+
+        size_t p = ks;
+        size_t kcl = kc / sizeof(__fp16);
+        do {
+            const __fp16* restrict a0 = a[0];
+            assert(a0 != NULL);
+            if XNN_UNPREDICTABLE(a0 != zero) {
+                a0 = (const __fp16*) ((uintptr_t) a0 + a_offset);
+            }
+            const __fp16* restrict a1 = a[1];
+            assert(a1 != NULL);
+            if XNN_UNPREDICTABLE(a1 != zero) {
+                a1 = (const __fp16*) ((uintptr_t) a1 + a_offset);
+            }
+            const __fp16* restrict a2 = a[2];
+            assert(a2 != NULL);
+            if XNN_UNPREDICTABLE(a2 != zero) {
+                a2 = (const __fp16*) ((uintptr_t) a2 + a_offset);
+            }
+            const __fp16* restrict a3 = a[3];
+            assert(a3 != NULL);
+            if XNN_UNPREDICTABLE(a3 != zero) {
+                a3 = (const __fp16*) ((uintptr_t) a3 + a_offset);
+            }
+            a += 4;
+
+            size_t k = kc;
+            for(size_t k = 0; k < kcl ; k++){
+                vfloat16m2_t vw = vle16_v_f16m2(hw, 16);
+                hw += 16;
+                vacc0 = vfmacc_vf_f16m2(vacc0, *a0, vw, 16); // update 1st row count
+                vacc1 = vfmacc_vf_f16m2(vacc1, *a1, vw, 16); // update 1st row count
+                vacc2 = vfmacc_vf_f16m2(vacc2, *a2, vw, 16); // update 1st row count
+                vacc3 = vfmacc_vf_f16m2(vacc3, *a3, vw, 16); // update 1st row count
+                a0++;
+                a1++;
+                a2++;
+                a3++;
+            }
+            p -= 4 * sizeof(void*);//todo
+        } while (p != 0);
+
+        vacc0 = vfmax_vf_f16m2(vacc0, vmin, vl);
+        vacc1 = vfmax_vf_f16m2(vacc1, vmin, vl);
+        vacc2 = vfmax_vf_f16m2(vacc2, vmin, vl);
+        vacc3 = vfmax_vf_f16m2(vacc3, vmin, vl);
+
+        vacc0 = vfmin_vf_f16m2(vacc0, vmax, vl);
+        vacc1 = vfmin_vf_f16m2(vacc1, vmax, vl);
+        vacc2 = vfmin_vf_f16m2(vacc2, vmax, vl);
+        vacc3 = vfmin_vf_f16m2(vacc3, vmax, vl);
+
+        vse16_v_f16m2(c0, vacc0, vl); // store 1st row result
+        vse16_v_f16m2(c1, vacc1, vl); // store 1st row result
+        vse16_v_f16m2(c2, vacc2, vl); // store 1st row result
+        vse16_v_f16m2(c3, vacc3, vl); // store 1st row result
+
+        if XNN_LIKELY(nc >= 16) {
             c3 = (__fp16*) ((uintptr_t) c3 + cn_stride);
             c2 = (__fp16*) ((uintptr_t) c2 + cn_stride);
             c1 = (__fp16*) ((uintptr_t) c1 + cn_stride);
@@ -3358,8 +3767,10 @@ void xnn_f16_maxpool_minmax_ukernel_9p8x__rvv_u2v(
     assert(kernel_elements != 0);
     assert(channels != 0);
 
-    const __fp16 voutput_min = params->fp16arith.min;
-    const __fp16 voutput_max = params->fp16arith.max;
+    const __fp16 voutput_min, voutput_max;
+    memcpy(&voutput_min, &params->fp16arith.min, sizeof(voutput_min));
+    memcpy(&voutput_max, &params->fp16arith.max, sizeof(voutput_max));
+
     do {
         __fp16* o = output;
         {
@@ -3525,15 +3936,25 @@ void xnn_f16_vsigmoid_ukernel__rvv_u2v(
     assert(input != NULL);
     assert(output != NULL);
 
-    const __fp16 vmagic_bias = params->fp16arith_rr2_p2.magic_bias;
-    const __fp16 vminus_log2e = params->fp16arith_rr2_p2.minus_log2e;
+    const __fp16 vmagic_bias;
+    const __fp16 vminus_log2e;
     const uint16_t vindex_mask = UINT16_C(0x3F);
-    const __fp16 vln2_hi = params->fp16arith_rr2_p2.ln2_hi;
-    const __fp16 vln2_lo = params->fp16arith_rr2_p2.ln2_lo;
-    const __fp16 vc1 = params->fp16arith_rr2_p2.c1;
-    const __fp16 vc2 = params->fp16arith_rr2_p2.c2;
+    const __fp16 vln2_hi;
+    const __fp16 vln2_lo;
+    const __fp16 vc1;
+    const __fp16 vc2;
     const __fp16 vone = 1.0f;
-    const __fp16 vdenorm_cutoff = params->fp16arith_rr2_p2.denorm_cutoff;
+    const __fp16 vdenorm_cutoff;
+
+    memcpy(&vmagic_bias, &params->fp16arith_rr2_p2.magic_bias, sizeof(vmagic_bias));
+    memcpy(&vminus_log2e, &params->fp16arith_rr2_p2.minus_log2e, sizeof(vminus_log2e));
+
+    memcpy(&vln2_hi, &params->fp16arith_rr2_p2.ln2_hi, sizeof(vln2_hi));
+    memcpy(&vln2_lo, &params->fp16arith_rr2_p2.ln2_lo, sizeof(vln2_lo));
+    memcpy(&vc1, &params->fp16arith_rr2_p2.c1, sizeof(vc1));
+    memcpy(&vc2, &params->fp16arith_rr2_p2.c2, sizeof(vc2));
+
+    memcpy(&vdenorm_cutoff, &params->fp16arith_rr2_p2.denorm_cutoff, sizeof(vdenorm_cutoff));
 
     size_t size = batch / sizeof(__fp16);
     do {
@@ -3601,8 +4022,10 @@ void xnn_f16_vadd_minmax_ukernel__rvv_u2v(
     assert(input_b != NULL);
     assert(output != NULL);
 
-    const __fp16 voutput_min = params->fp16arith.min;
-    const __fp16 voutput_max = params->fp16arith.max;
+    const __fp16 voutput_min;
+    const __fp16 voutput_max;
+    memcpy(&voutput_min, &params->fp16arith.min, sizeof(voutput_min));
+    memcpy(&voutput_max, &params->fp16arith.max, sizeof(voutput_max));
 
     size_t size = batch / sizeof(__fp16);
     do {
@@ -3645,8 +4068,10 @@ void xnn_f16_vaddc_minmax_ukernel__rvv_u2v(
     assert(input_b != NULL);
     assert(output != NULL);
 
-    const __fp16 voutput_min = params->fp16arith.min;
-    const __fp16 voutput_max = params->fp16arith.max;
+    const __fp16 voutput_min;
+    const __fp16 voutput_max;
+    memcpy(&voutput_min, &params->fp16arith.min, sizeof(voutput_min));
+    memcpy(&voutput_max, &params->fp16arith.max, sizeof(voutput_max));
     const __fp16 vb = *(__fp16 *)input_b;
 
     size_t size = batch / sizeof(__fp16);
@@ -3688,8 +4113,10 @@ void xnn_f16_vmul_minmax_ukernel__rvv_u2v(
     assert(input_b != NULL);
     assert(output != NULL);
 
-    const __fp16 voutput_min = params->fp16arith.min;
-    const __fp16 voutput_max = params->fp16arith.max;
+    const __fp16 voutput_min;
+    const __fp16 voutput_max;
+    memcpy(&voutput_min, &params->fp16arith.min, sizeof(voutput_min));
+    memcpy(&voutput_max, &params->fp16arith.max, sizeof(voutput_max));
 
     size_t size = batch / sizeof(__fp16);
     do {
@@ -3732,8 +4159,10 @@ void xnn_f16_vmulc_minmax_ukernel__rvv_u2v(
     assert(input_b != NULL);
     assert(output != NULL);
 
-    const __fp16 voutput_min = params->fp16arith.min;
-    const __fp16 voutput_max = params->fp16arith.max;
+    const __fp16 voutput_min;
+    const __fp16 voutput_max;
+    memcpy(&voutput_min, &params->fp16arith.min, sizeof(voutput_min));
+    memcpy(&voutput_max, &params->fp16arith.max, sizeof(voutput_max));
     const __fp16 vb = *(__fp16*)input_b;
 
     size_t size = batch / sizeof(__fp16);

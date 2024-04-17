@@ -79,6 +79,9 @@ static inline bool xnn_is_f16_compatible_config(const struct xnn_hardware_config
     return hardware_config->use_arm_neon_fp16_arith;
   #elif (XNN_ARCH_X86 || XNN_ARCH_X86_64) && !XNN_PLATFORM_MOBILE
     return hardware_config->use_x86_avx2;
+  // FIXME: temp code to enable f16 on risv vector
+  #elif (XNN_ARCH_RISCV && XNN_ENABLE_RISCV_VECTOR)
+    return hardware_config->use_riscv_vector_fp16_arith;
   #else
     return false;
   #endif
@@ -87,6 +90,9 @@ static inline bool xnn_is_f16_compatible_config(const struct xnn_hardware_config
 static inline bool xnn_is_f16_chw_compatible_config(const struct xnn_hardware_config hardware_config[XNN_MIN_ELEMENTS(1)]) {
   #if (XNN_ARCH_ARM && XNN_ENABLE_ARM_FP16_VECTOR && XNN_ENABLE_ARM_FP16_SCALAR) || (XNN_ARCH_ARM64 && XNN_ENABLE_ARM_FP16_VECTOR)
     return hardware_config->use_arm_neon_fp16_arith;
+    // FIXME: temp code to enable f16 on risv vector
+  #elif (XNN_ARCH_RISCV && XNN_ENABLE_RISCV_VECTOR)
+    return hardware_config->use_riscv_vector_fp16_arith;
   #else
     return false;
   #endif
@@ -105,6 +111,9 @@ static inline bool xnn_is_chw_compatible_config(const struct xnn_hardware_config
 static inline bool xnn_is_f16_supported_natively(const struct xnn_hardware_config hardware_config[XNN_MIN_ELEMENTS(1)]) {
   #if (XNN_ARCH_ARM && XNN_ENABLE_ARM_FP16_VECTOR && XNN_ENABLE_ARM_FP16_SCALAR) || (XNN_ARCH_ARM64 && XNN_ENABLE_ARM_FP16_VECTOR)
     return hardware_config->use_arm_neon_fp16_arith;
+  // FIXME: temp code to enable f16 on risv vector
+  #elif (XNN_ARCH_RISCV && XNN_ENABLE_RISCV_VECTOR)
+    return hardware_config->use_riscv_vector_fp16_arith;
   #else
     return false;
   #endif
