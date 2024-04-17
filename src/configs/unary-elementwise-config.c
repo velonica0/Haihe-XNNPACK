@@ -445,7 +445,8 @@ static void init_f16_sigmoid_config(void) {
       f16_sigmoid_config.element_tile = 32;
     }
   #elif XNN_ARCH_RISCV && XNN_ENABLE_RISCV_VECTOR
-    f16_sigmoid_config.ukernel = (xnn_vunary_ukernel_fn) xnn_f16_vsigmoid_ukernel__rvv_u2v;
+    // f16_sigmoid_config.ukernel = (xnn_vunary_ukernel_fn) xnn_f16_vsigmoid_ukernel__rvv_u2v;
+    f16_sigmoid_config.ukernel = (xnn_vunary_ukernel_fn) xnn_f16_vsigmoid_ukernel__thead_u2v;
     f16_sigmoid_config.init.f16_sigmoid = xnn_init_f16_sigmoid_fp16arith_rr2_p2_params;
     f16_sigmoid_config.element_tile = 16;
   #endif
@@ -1286,7 +1287,8 @@ static void init_f32_sigmoid_config(void) {
     f32_sigmoid_config.element_tile = 2;
   #elif XNN_ARCH_RISCV
     #if XNN_ENABLE_RISCV_VECTOR
-        f32_sigmoid_config.ukernel = (xnn_vunary_ukernel_fn) xnn_f32_vsigmoid_ukernel__rvv_u2v;
+        // f32_sigmoid_config.ukernel = (xnn_vunary_ukernel_fn) xnn_f32_vsigmoid_ukernel__rvv_u2v;
+        f32_sigmoid_config.ukernel = (xnn_vunary_ukernel_fn) xnn_f32_vsigmoid_ukernel__thead_u2v;
         f32_sigmoid_config.init.f32_sigmoid = xnn_init_f32_sigmoid_scalar_rr2_lut64_p2_params;
         f32_sigmoid_config.element_tile = 8;
     #else
