@@ -395,6 +395,20 @@ DECLARE_F32_IGEMM_MINMAX_UKERNEL_FUNCTION(xnn_f32_igemm_minmax_ukernel_2x4__wasm
 DECLARE_F32_IGEMM_MINMAX_UKERNEL_FUNCTION(xnn_f32_igemm_minmax_ukernel_4x2__wasm)
 DECLARE_F32_IGEMM_MINMAX_UKERNEL_FUNCTION(xnn_f32_igemm_minmax_ukernel_4x4__wasm)
 
+DECLARE_F32_IGEMM_UKERNEL_FUNCTION(xnn_f32_igemm_ukernel_4x4__rvv_u1v)
+DECLARE_F32_IGEMM_UKERNEL_FUNCTION(xnn_f32_igemm_ukernel_1x8__rvv_u2v)
+DECLARE_F32_IGEMM_UKERNEL_FUNCTION(xnn_f32_igemm_ukernel_4x8__rvv_u2v)
+DECLARE_F32_IGEMM_UKERNEL_FUNCTION(xnn_f32_igemm_ukernel_4x16__rvv_u4v)
+
+DECLARE_F32_IGEMM_UKERNEL_FUNCTION(xnn_f32_igemm_relu_ukernel_1x8__rvv_u2v)
+DECLARE_F32_IGEMM_UKERNEL_FUNCTION(xnn_f32_igemm_relu_ukernel_4x8__rvv_u2v)
+
+DECLARE_F32_IGEMM_UKERNEL_FUNCTION(xnn_f32_igemm_minmax_ukernel_1x8__rvv_u2v)
+DECLARE_F32_IGEMM_UKERNEL_FUNCTION(xnn_f32_igemm_minmax_ukernel_4x8__rvv_u2v)
+
+
+
+
 DECLARE_F32_IGEMM_UKERNEL_FUNCTION(xnn_f32_igemm_ukernel_1x4__scalar)
 DECLARE_F32_IGEMM_UKERNEL_FUNCTION(xnn_f32_igemm_ukernel_2x4__scalar)
 DECLARE_F32_IGEMM_UKERNEL_FUNCTION(xnn_f32_igemm_ukernel_4x2__scalar)
@@ -409,6 +423,25 @@ DECLARE_F32_IGEMM_MINMAX_UKERNEL_FUNCTION(xnn_f32_igemm_minmax_ukernel_1x4__scal
 DECLARE_F32_IGEMM_MINMAX_UKERNEL_FUNCTION(xnn_f32_igemm_minmax_ukernel_2x4__scalar)
 DECLARE_F32_IGEMM_MINMAX_UKERNEL_FUNCTION(xnn_f32_igemm_minmax_ukernel_4x2__scalar)
 DECLARE_F32_IGEMM_MINMAX_UKERNEL_FUNCTION(xnn_f32_igemm_minmax_ukernel_4x4__scalar)
+
+#define DECLARE_F16_IGEMM_UKERNEL_FUNCTION(fn_name) \
+  XNN_INTERNAL void fn_name(                        \
+      size_t mr,                                    \
+      size_t nr,                                    \
+      size_t kc,                                    \
+      size_t ks,                                    \
+      const void** a,                              \
+      const void* w,                               \
+      void* c,                                     \
+      size_t cm_stride,                             \
+      size_t cn_stride,                             \
+      size_t a_offset,                              \
+      const void* zero,                            \
+      const union xnn_f16_default_params params[XNN_RESTRICT XNN_MIN_ELEMENTS(1)]);
+
+DECLARE_F16_IGEMM_UKERNEL_FUNCTION(xnn_f16_igemm_ukernel_1x16__rvv_u2v)
+DECLARE_F16_IGEMM_UKERNEL_FUNCTION(xnn_f16_igemm_ukernel_4x16__rvv_u2v)
+
 
 
 #define DECLARE_F16_IGEMM_MINMAX_UKERNEL_FUNCTION(fn_name) \
@@ -453,6 +486,9 @@ DECLARE_F16_IGEMM_MINMAX_UKERNEL_FUNCTION(xnn_f16_igemm_minmax_ukernel_5x8__avx2
 DECLARE_F16_IGEMM_MINMAX_UKERNEL_FUNCTION(xnn_f16_igemm_minmax_ukernel_5x16__avx2_broadcast)
 DECLARE_F16_IGEMM_MINMAX_UKERNEL_FUNCTION(xnn_f16_igemm_minmax_ukernel_6x8__avx2_broadcast)
 DECLARE_F16_IGEMM_MINMAX_UKERNEL_FUNCTION(xnn_f16_igemm_minmax_ukernel_7x8__avx2_broadcast)
+
+DECLARE_F16_IGEMM_MINMAX_UKERNEL_FUNCTION(xnn_f16_igemm_minmax_ukernel_1x16__rvv_u2v)
+DECLARE_F16_IGEMM_MINMAX_UKERNEL_FUNCTION(xnn_f16_igemm_minmax_ukernel_4x16__rvv_u2v)
 
 DECLARE_F16_IGEMM_MINMAX_UKERNEL_FUNCTION(xnn_f16_f32acc_igemm_minmax_ukernel_1x8__avx2_broadcast)
 DECLARE_F16_IGEMM_MINMAX_UKERNEL_FUNCTION(xnn_f16_f32acc_igemm_minmax_ukernel_1x16__avx2_broadcast)

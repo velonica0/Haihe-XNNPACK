@@ -146,7 +146,8 @@ static void init_hardware_config(void) {
     hardware_config.use_riscv_vector = (hwcap & COMPAT_HWCAP_ISA_V) != 0;
 
     /* There is no HWCAP for fp16 so disable by default */
-    hardware_config.use_riscv_vector_fp16_arith = false;
+    // FIXME: force enable fp16 for now
+    hardware_config.use_riscv_vector_fp16_arith = true;
 
     if (hardware_config.use_riscv_vector) {
       register uint32_t vlenb __asm__ ("t0");

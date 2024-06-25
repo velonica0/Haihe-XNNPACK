@@ -4,7 +4,7 @@
 // LICENSE file in the root directory of this source tree.
 
 #include <assert.h>
-#include <riscv_vector.h>
+#include "riscv_v_071_fix.h"
 #include <xnnpack/vbinary.h>
 
 $assert DATATYPE in ["QS8", "QU8"]

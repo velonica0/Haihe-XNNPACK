@@ -19,6 +19,8 @@
 #ifndef XNN_LOG_LEVEL
   #error "Undefined XNN_LOG_LEVEL"
 #endif
+// #undef XNN_LOG_LEVEL
+// #define XNN_LOG_LEVEL 5
 
 #define XNN_LOG_NONE 0
 #define XNN_LOG_FATAL 1

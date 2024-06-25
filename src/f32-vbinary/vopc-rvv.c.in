@@ -8,7 +8,7 @@ $assert OP in ["ADD", "DIV", "RDIV", "MAX", "MIN", "MUL", "SUB", "RSUB", "SQRDIF
 $assert ACTIVATION in ["LINEAR", "MINMAX", "RELU"]
 #include <assert.h>
 
-#include <riscv_vector.h>
+#include "riscv_v_071_fix.h"
 
 #include <xnnpack/common.h>
 #include <xnnpack/vbinary.h>
