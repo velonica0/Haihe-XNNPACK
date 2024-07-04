@@ -33,6 +33,7 @@ extern "C" {
 
 DECLARE_F16_MAXPOOL_MINMAX_UKERNEL_FUNCTION(xnn_f16_maxpool_minmax_ukernel_9p8x__f16c_c8)
 DECLARE_F16_MAXPOOL_MINMAX_UKERNEL_FUNCTION(xnn_f16_maxpool_minmax_ukernel_9p8x__neonfp16arith_c8)
+DECLARE_F16_MAXPOOL_MINMAX_UKERNEL_FUNCTION(xnn_f16_maxpool_minmax_ukernel_9p8x__rvv_u2v)
 
 
 #define DECLARE_F32_MAXPOOL_MINMAX_UKERNEL_FUNCTION(fn_name) \

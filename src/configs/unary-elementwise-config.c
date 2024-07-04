@@ -444,6 +444,10 @@ static void init_f16_sigmoid_config(void) {
       f16_sigmoid_config.init.f16_sigmoid = xnn_init_f16_sigmoid_avx2_rr1_p2_params;
       f16_sigmoid_config.element_tile = 32;
     }
+  #elif XNN_ARCH_RISCV && XNN_ENABLE_RISCV_VECTOR
+    f16_sigmoid_config.ukernel = (xnn_vunary_ukernel_fn) xnn_f16_vsigmoid_ukernel__thead_u2v;
+    f16_sigmoid_config.init.f16_sigmoid = xnn_init_f16_sigmoid_fp16arith_rr2_p2_params;
+    f16_sigmoid_config.element_tile = 16;
   #endif
 }
 
@@ -855,9 +859,15 @@ static void init_f32_hswish_config(void) {
       f32_hswish_config.element_tile = 4;
     }
   #elif XNN_ARCH_RISCV
-    f32_hswish_config.ukernel = (xnn_vunary_ukernel_fn) xnn_f32_vhswish_ukernel__scalar_u4;
-    f32_hswish_config.init.f32_hswish = xnn_init_f32_hswish_scalar_params;
-    f32_hswish_config.element_tile = 4;
+    #if XNN_ENABLE_RISCV_VECTOR
+        f32_hswish_config.ukernel = (xnn_vunary_ukernel_fn) xnn_f32_vhswish_ukernel__rvv_u2v;
+        f32_hswish_config.init.f32_hswish = xnn_init_f32_hswish_scalar_params;
+        f32_hswish_config.element_tile = 8;
+    #else
+        f32_hswish_config.ukernel = (xnn_vunary_ukernel_fn) xnn_f32_vhswish_ukernel__scalar_u4;
+        f32_hswish_config.init.f32_hswish = xnn_init_f32_hswish_scalar_params;
+        f32_hswish_config.element_tile = 4;
+    #endif
   #elif XNN_ARCH_PPC64
     f32_hswish_config.ukernel = (xnn_vunary_ukernel_fn) xnn_f32_vhswish_ukernel__scalar_u4;
     f32_hswish_config.init.f32_hswish = xnn_init_f32_hswish_scalar_params;
@@ -1268,9 +1278,16 @@ static void init_f32_sigmoid_config(void) {
     f32_sigmoid_config.init.f32_sigmoid = xnn_init_f32_sigmoid_scalar_rr2_lut64_p2_params;
     f32_sigmoid_config.element_tile = 2;
   #elif XNN_ARCH_RISCV
-    f32_sigmoid_config.ukernel = (xnn_vunary_ukernel_fn) xnn_f32_vsigmoid_ukernel__scalar_rr2_lut64_p2_div_u2;
-    f32_sigmoid_config.init.f32_sigmoid = xnn_init_f32_sigmoid_scalar_rr2_lut64_p2_params;
-    f32_sigmoid_config.element_tile = 2;
+    #if XNN_ENABLE_RISCV_VECTOR
+        // f32_sigmoid_config.ukernel = (xnn_vunary_ukernel_fn) xnn_f32_vsigmoid_ukernel__rvv_u2v;
+        f32_sigmoid_config.ukernel = (xnn_vunary_ukernel_fn) xnn_f32_vsigmoid_ukernel__thead_u2v;
+        f32_sigmoid_config.init.f32_sigmoid = xnn_init_f32_sigmoid_scalar_rr2_lut64_p2_params;
+        f32_sigmoid_config.element_tile = 8;
+    #else
+        f32_sigmoid_config.ukernel = (xnn_vunary_ukernel_fn) xnn_f32_vsigmoid_ukernel__scalar_rr2_lut64_p2_div_u2;
+        f32_sigmoid_config.init.f32_sigmoid = xnn_init_f32_sigmoid_scalar_rr2_lut64_p2_params;
+        f32_sigmoid_config.element_tile = 2;
+    #endif
   #elif XNN_ARCH_PPC64
     f32_sigmoid_config.ukernel = (xnn_vunary_ukernel_fn) xnn_f32_vsigmoid_ukernel__scalar_rr2_lut64_p2_div_u2;
     f32_sigmoid_config.init.f32_sigmoid = xnn_init_f32_sigmoid_scalar_rr2_lut64_p2_params;
