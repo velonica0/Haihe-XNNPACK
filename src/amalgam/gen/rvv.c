@@ -414,7 +414,7 @@ void xnn_f32_vlrelu_ukernel__rvv_u8v(
 		vfloat32m8_t in_u8v = __riscv_vle32_v_f32m8(input, n);
 		input += n;
 		vbool4_t mask = __riscv_vmflt_vf_f32m8_b4(in_u8v, .0f, n);
-		vfloat32m8_t out_u8v = __riscv_vfmul_vf_f32m8_m(mask, in_u8v, in_u8v, vslope, n);
+		vfloat32m8_t out_u8v = __riscv_vfmul_vf_f32m8_m(mask, in_u8v, vslope, n);
 		//vfloat32m8_t out_u8v = vfmax_vf_f32m8(in_u8v, .0f, n);
 		__riscv_vse32_v_f32m8(output, out_u8v, n);
 
