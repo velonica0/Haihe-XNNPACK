@@ -25,7 +25,7 @@
 #include <xnnpack/rvv_mathfun_fp16.h>
 #include <xnnpack/rvv_mathfun_fp32.h>
 
-//#define __fp16 _Float16
+#define __fp16 _Float16
 
 //首次提交测试
 

@@ -33,7 +33,7 @@
                                                                                                \
         /* if greater, substract 1 */                                                          \
         vbool##MLEN##_t mask = __riscv_vmfgt_vv_f32m##LMUL##_b##MLEN(tmp, fx, vl);                     \
-        fx = __riscv_vfsub_vf_f32m##LMUL##_m(mask, tmp, tmp, 1.f, vl);                                 \
+        fx = __riscv_vfsub_vf_f32m##LMUL##_m(mask, tmp, 1.f, vl);                                 \
                                                                                                \
         tmp = __riscv_vfmul_vf_f32m##LMUL(fx, c_cephes_exp_C1, vl);                                    \
         vfloat32m##LMUL##_t z = __riscv_vfmul_vf_f32m##LMUL(fx, c_cephes_exp_C2, vl);                  \

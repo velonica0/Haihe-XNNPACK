@@ -43,7 +43,7 @@
 #include <xnnpack/vunary.h>
 #include <xnnpack/zip.h>
 
-//#define __fp16 _Float16
+#define __fp16 _Float16
 
 
 void xnn_f16_f32_vcvt_ukernel__scalar_u1(
