@@ -10,6 +10,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include <time.h>
 
 #include <xnnpack/argmaxpool.h>
 #include <xnnpack/avgpool.h>
@@ -41,6 +42,8 @@
 #include <xnnpack/vmulcaddc.h>
 #include <xnnpack/vunary.h>
 #include <xnnpack/zip.h>
+
+//#define __fp16 _Float16
 
 
 void xnn_f16_f32_vcvt_ukernel__scalar_u1(

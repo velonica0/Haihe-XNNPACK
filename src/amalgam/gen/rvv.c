@@ -5,8 +5,15 @@
 
 #include <assert.h>
 #include <math.h>
+#include <assert.h>
+#include <math.h>
+#include <time.h>
+#include <stdio.h>
+#include <string.h>
 
 #include <riscv_vector.h>
+#include <fp16/fp16.h>
+
 
 #include <xnnpack/common.h>
 #include <xnnpack/intrinsics-polyfill.h>
@@ -14,6 +21,11 @@
 #include <xnnpack/raddstoreexpminusmax.h>
 #include <xnnpack/vbinary.h>
 #include <xnnpack/vunary.h>
+
+#include <xnnpack/rvv_mathfun_fp16.h>
+#include <xnnpack/rvv_mathfun_fp32.h>
+
+//#define __fp16 _Float16
 
 //首次提交测试
 
@@ -401,8 +413,8 @@ void xnn_f32_vlrelu_ukernel__rvv_u8v(
 
 		vfloat32m8_t in_u8v = __riscv_vle32_v_f32m8(input, n);
 		input += n;
-		vbool4_t mask = vmflt_vf_f32m8_b4(in_u8v, .0f, n);
-		vfloat32m8_t out_u8v = __riscv_vmflt_vf_f32m8_b4(mask, in_u8v, in_u8v, vslope, n);
+		vbool4_t mask = __riscv_vmflt_vf_f32m8_b4(in_u8v, .0f, n);
+		vfloat32m8_t out_u8v = __riscv_vfmul_vf_f32m8_m(mask, in_u8v, in_u8v, vslope, n);
 		//vfloat32m8_t out_u8v = vfmax_vf_f32m8(in_u8v, .0f, n);
 		__riscv_vse32_v_f32m8(output, out_u8v, n);
 
@@ -704,7 +716,7 @@ void xnn_f32_igemm_ukernel_4x4__rvv_u1v(
 
             size_t k = kc;
             for(size_t k = 0; k < kcl ; k++){
-                vfloat32m1_t vw = vle32_v_f32m1(w, 4);
+                vfloat32m1_t vw = __riscv_vle32_v_f32m1(w, 4);
                 w += 4;
                 vacc0 = __riscv_vfmacc_vf_f32m1(vacc0, *a0, vw, 4); // update 1st row count
                 vacc1 = __riscv_vfmacc_vf_f32m1(vacc1, *a1, vw, 4); // update 1st row count
@@ -734,68 +746,68 @@ void xnn_f32_igemm_ukernel_4x4__rvv_u1v(
     } while (nc != 0);
 }
 
-extern XNN_INTERNAL const uint32_t xnn_table_exp2minus_k_over_64[64];
-void xnn_f32_vsigmoid_ukernel__rvv_u2v(
-        size_t batch,
-        const float* input,
-        float* output,
-        const union xnn_f32_sigmoid_params params[restrict XNN_MIN_ELEMENTS(1)])
-{
-    assert(batch != 0);
-    assert(batch % sizeof(float) == 0);
-    assert(input != NULL);
-    assert(output != NULL);
+// extern XNN_INTERNAL const uint32_t xnn_table_exp2minus_k_over_64[64];
+// void xnn_f32_vsigmoid_ukernel__rvv_u2v(
+//         size_t batch,
+//         const float* input,
+//         float* output,
+//         const union xnn_f32_sigmoid_params params[restrict XNN_MIN_ELEMENTS(1)])
+// {
+//     assert(batch != 0);
+//     assert(batch % sizeof(float) == 0);
+//     assert(input != NULL);
+//     assert(output != NULL);
 
-    const float vmagic_bias = params->scalar_rr2_lut64_p2.magic_bias;
-    const float vminus_log2e = params->scalar_rr2_lut64_p2.minus_log2e;
-    const uint32_t vindex_mask = UINT32_C(0x3F);
-    const float vln2_hi = params->scalar_rr2_lut64_p2.ln2_hi;
-    const float vln2_lo = params->scalar_rr2_lut64_p2.ln2_lo;
-    const float vc2 = params->scalar_rr2_lut64_p2.c2;
-    const float vone = params->scalar_rr2_lut64_p2.one;
-    const float vdenorm_cutoff = params->scalar_rr2_lut64_p2.denorm_cutoff;
+//     const float vmagic_bias = params->scalar_rr2_lut64_p2.magic_bias;
+//     const float vminus_log2e = params->scalar_rr2_lut64_p2.minus_log2e;
+//     const uint32_t vindex_mask = UINT32_C(0x3F);
+//     const float vln2_hi = params->scalar_rr2_lut64_p2.ln2_hi;
+//     const float vln2_lo = params->scalar_rr2_lut64_p2.ln2_lo;
+//     const float vc2 = params->scalar_rr2_lut64_p2.c2;
+//     const float vone = params->scalar_rr2_lut64_p2.one;
+//     const float vdenorm_cutoff = params->scalar_rr2_lut64_p2.denorm_cutoff;
 
-    size_t size = batch / sizeof(float);
-    do {
-        const size_t vl = __riscv_vsetvl_e32m2(size);
-        vfloat32m2_t vx = __riscv_vle32_v_f32m2(input, vl);
-        input += vl;
-        // get abs
-        vfloat32m2_t vz = __riscv_vfabs_v_f32m2(vx, vl);
-        // vz*(-log2(e))+magic_bias
-        vfloat32m2_t vn = __riscv_vfadd_vf_f32m2(__riscv_vfmul_vf_f32m2(vz, vminus_log2e, vl), vmagic_bias, vl);
-        // get exponent
-        vuint32m2_t ve = __riscv_vsll_vx_u32m2(__riscv_vreinterpret_v_f32m2_u32m2(vn), 17, vl);
-        // find index in lookup table using mask
-        vuint32m2_t vidx = __riscv_vand_vx_u32m2(__riscv_vreinterpret_v_f32m2_u32m2(vn), vindex_mask, vl);
-        vfloat32m2_t vs = __riscv_vreinterpret_v_u32m2_f32m2(__riscv_vadd_vv_u32m2(__riscv_vloxei32_v_u32m2(xnn_table_exp2minus_k_over_64, __riscv_vmul_vx_u32m2(vidx, 4, vl), vl), ve, vl));
-        // remove magic bias
-        vn = __riscv_vfsub_vf_f32m2(vn, vmagic_bias, vl);
-        // find logarithm
-        vfloat32m2_t vt = __riscv_vfadd_vv_f32m2(__riscv_vfmul_vf_f32m2(vn, vln2_hi, vl), vz, vl);
-        vt = __riscv_vfmacc_vf_f32m2(vt, vln2_lo, vn, vl);
-        // calculate the quadratic term logarithmically.
-        vfloat32m2_t vp = __riscv_vfmul_vf_f32m2(vt, vc2, vl);
-        vp = __riscv_vfsub_vv_f32m2(vt, __riscv_vfmul_vv_f32m2(vp, vt, vl), vl);
-        // caculate sigmoid polynomial approximation
-        vfloat32m2_t vy = __riscv_vfsub_vv_f32m2(vs, __riscv_vfmul_vv_f32m2(vs, vp, vl), vl);
-        vfloat32m2_t vd = __riscv_vfadd_vf_f32m2(vy, vone, vl);
-        vfloat32m2_t vf = __riscv_vfdiv_vv_f32m2(vy, vd, vl);
+//     size_t size = batch / sizeof(float);
+//     do {
+//         const size_t vl = __riscv_vsetvl_e32m2(size);
+//         vfloat32m2_t vx = __riscv_vle32_v_f32m2(input, vl);
+//         input += vl;
+//         // get abs
+//         vfloat32m2_t vz = __riscv_vfabs_v_f32m2(vx, vl);
+//         // vz*(-log2(e))+magic_bias
+//         vfloat32m2_t vn = __riscv_vfadd_vf_f32m2(__riscv_vfmul_vf_f32m2(vz, vminus_log2e, vl), vmagic_bias, vl);
+//         // get exponent
+//         vuint32m2_t ve = __riscv_vsll_vx_u32m2(__riscv_vreinterpret_v_f32m2_u32m2(vn), 17, vl);
+//         // find index in lookup table using mask
+//         vuint32m2_t vidx = __riscv_vand_vx_u32m2(__riscv_vreinterpret_v_f32m2_u32m2(vn), vindex_mask, vl);
+//         vfloat32m2_t vs = __riscv_vreinterpret_v_u32m2_f32m2(__riscv_vadd_vv_u32m2(__riscv_vloxei32_v_u32m2(xnn_table_exp2minus_k_over_64, __riscv_vmul_vx_u32m2(vidx, 4, vl), vl), ve, vl));
+//         // remove magic bias
+//         vn = __riscv_vfsub_vf_f32m2(vn, vmagic_bias, vl);
+//         // find logarithm
+//         vfloat32m2_t vt = __riscv_vfadd_vv_f32m2(__riscv_vfmul_vf_f32m2(vn, vln2_hi, vl), vz, vl);
+//         vt = __riscv_vfmacc_vf_f32m2(vt, vln2_lo, vn, vl);
+//         // calculate the quadratic term logarithmically.
+//         vfloat32m2_t vp = __riscv_vfmul_vf_f32m2(vt, vc2, vl);
+//         vp = __riscv_vfsub_vv_f32m2(vt, __riscv_vfmul_vv_f32m2(vp, vt, vl), vl);
+//         // caculate sigmoid polynomial approximation
+//         vfloat32m2_t vy = __riscv_vfsub_vv_f32m2(vs, __riscv_vfmul_vv_f32m2(vs, vp, vl), vl);
+//         vfloat32m2_t vd = __riscv_vfadd_vf_f32m2(vy, vone, vl);
+//         vfloat32m2_t vf = __riscv_vfdiv_vv_f32m2(vy, vd, vl);
 
-        vbool16_t mask = __riscv_vmfgt_vf_f32m2_b16 (vz, vdenorm_cutoff, vl);
-        vf = __riscv_vfmerge_vfm_f32m2(mask, vf, 0.0f, vl);
+//         vbool16_t mask = __riscv_vmfgt_vf_f32m2_b16 (vz, vdenorm_cutoff, vl);
+//         vf = __riscv_vfmerge_vfm_f32m2(vf, 0.0f, mask, vl);
 
-        mask = __riscv_vmfgt_vf_f32m2_b16 (vx, 0.0f, vl);
-        vf = __riscv_vfmul_vf_f32m2(mask, vf, vf, -1.0f, vl);
-        vf = __riscv_vfadd_vf_f32m2(mask, vf, vf, vone, vl);
+//         mask = __riscv_vmfgt_vf_f32m2_b16 (vx, 0.0f, vl);
+//         vf = __riscv_vfmul_vf_f32m2_m(mask, vf, vf, -1.0f, vl);
+//         vf = __riscv_vfadd_vf_f32m2_m(mask, vf, vf, vone, vl);
 
-        // store result
-        __riscv_vse32_v_f32m2(output, vf, vl);
+//         // store result
+//         __riscv_vse32_v_f32m2(output, vf, vl);
 
-        output += vl;
-        size -= vl;
-    } while (size > 0);
-}
+//         output += vl;
+//         size -= vl;
+//     } while (size > 0);
+// }
 
 void xnn_f32_vsigmoid_ukernel__thead_u2v(
         size_t batch,
@@ -1158,7 +1170,7 @@ void xnn_f32_vdivc_minmax_ukernel__rvv_u2v(
         input_a += vl;
 
         // 执行向量除法
-        vfloat32m2_t vacc = vfdiv_vf_f32m2(va, vb, vl);
+        vfloat32m2_t vacc = __riscv_vfdiv_vf_f32m2(va, vb, vl);
 
         // 应用最小值约束
         vacc = __riscv_vfmax_vf_f32m2(vacc, voutput_min, vl);
@@ -2918,7 +2930,7 @@ void xnn_f16_igemm_ukernel_1x16__rvv_u2v(
     assert(w != NULL);
     assert(c != NULL);
 
-    float* c0 = c;
+    __fp16* c0 = c;
 
     __fp16* hw = (__fp16*)w;
 
@@ -2949,8 +2961,8 @@ void xnn_f16_igemm_ukernel_1x16__rvv_u2v(
         __riscv_vse16_v_f16m2(c0, vacc0, vl); // store 1st row result
 
         if XNN_LIKELY(nc >= 16) {
-            c0 = (float*) ((uintptr_t) c0 + cn_stride);
-            a = (const float**restrict) ((uintptr_t) a - ks);
+            c0 = (__fp16*) ((uintptr_t) c0 + cn_stride);
+            a = (const void**restrict) ((uintptr_t) a - ks);
         }
         nc -= vl;
     } while (nc != 0);
@@ -3578,88 +3590,88 @@ void xnn_f16_maxpool_minmax_ukernel_9p8x__rvv_u2v(
     } while (--output_pixels != 0);
 }
 
-void xnn_f16_vsigmoid_ukernel__rvv_u2v(
-        size_t batch,
-        const void* input,
-        void* output,
-        const union xnn_f16_sigmoid_params params[restrict XNN_MIN_ELEMENTS(1)])
-{
-    assert(batch != 0);
-    assert(batch % sizeof(__fp16) == 0);
-    assert(input != NULL);
-    assert(output != NULL);
+// void xnn_f16_vsigmoid_ukernel__rvv_u2v(
+//         size_t batch,
+//         const void* input,
+//         void* output,
+//         const union xnn_f16_sigmoid_params params[restrict XNN_MIN_ELEMENTS(1)])
+// {
+//     assert(batch != 0);
+//     assert(batch % sizeof(__fp16) == 0);
+//     assert(input != NULL);
+//     assert(output != NULL);
 
-    __fp16 vmagic_bias;
-    __fp16 vminus_log2e;
-    uint16_t vindex_mask = UINT16_C(0x3F);
-    __fp16 vln2_hi;
-    __fp16 vln2_lo;
-    __fp16 vc1;
-    __fp16 vc2;
-    __fp16 vone = 1.0f;
-    __fp16 vdenorm_cutoff;
+//     __fp16 vmagic_bias;
+//     __fp16 vminus_log2e;
+//     uint16_t vindex_mask = UINT16_C(0x3F);
+//     __fp16 vln2_hi;
+//     __fp16 vln2_lo;
+//     __fp16 vc1;
+//     __fp16 vc2;
+//     __fp16 vone = 1.0f;
+//     __fp16 vdenorm_cutoff;
 
-    memcpy(&vmagic_bias, &params->fp16arith_rr2_p2.magic_bias, sizeof(vmagic_bias));
-    memcpy(&vminus_log2e, &params->fp16arith_rr2_p2.minus_log2e, sizeof(vminus_log2e));
+//     memcpy(&vmagic_bias, &params->fp16arith_rr2_p2.magic_bias, sizeof(vmagic_bias));
+//     memcpy(&vminus_log2e, &params->fp16arith_rr2_p2.minus_log2e, sizeof(vminus_log2e));
 
-    memcpy(&vln2_hi, &params->fp16arith_rr2_p2.ln2_hi, sizeof(vln2_hi));
-    memcpy(&vln2_lo, &params->fp16arith_rr2_p2.ln2_lo, sizeof(vln2_lo));
-    memcpy(&vc1, &params->fp16arith_rr2_p2.c1, sizeof(vc1));
-    memcpy(&vc2, &params->fp16arith_rr2_p2.c2, sizeof(vc2));
+//     memcpy(&vln2_hi, &params->fp16arith_rr2_p2.ln2_hi, sizeof(vln2_hi));
+//     memcpy(&vln2_lo, &params->fp16arith_rr2_p2.ln2_lo, sizeof(vln2_lo));
+//     memcpy(&vc1, &params->fp16arith_rr2_p2.c1, sizeof(vc1));
+//     memcpy(&vc2, &params->fp16arith_rr2_p2.c2, sizeof(vc2));
 
-    memcpy(&vdenorm_cutoff, &params->fp16arith_rr2_p2.denorm_cutoff, sizeof(vdenorm_cutoff));
+//     memcpy(&vdenorm_cutoff, &params->fp16arith_rr2_p2.denorm_cutoff, sizeof(vdenorm_cutoff));
 
-    size_t size = batch / sizeof(__fp16);
-    do {
-        const size_t vl = __riscv_vsetvl_e16m2(size);
-        vfloat16m2_t vx = __riscv_vle16_v_f16m2(input, vl);
-        input += vl;
-        // get abs
-        vfloat16m2_t vz = __riscv_vfabs_v_f16m2(vx, vl);
-        // vz*(-log2(e))+magic_bias
-        vfloat16m2_t vn = __riscv_vfadd_vf_f16m2(__riscv_vfmul_vf_f16m2(vz, vminus_log2e, vl), vmagic_bias, vl);
-        // get exponent
-        //vuint16m2_t ve = vsll_vx_u16m2(vreinterpret_v_f16m2_u16m2(vn), 17, vl);
-        // find index in lookup table using mask
-        //vuint16m2_t vidx = vand_vx_u16m2(vreinterpret_v_f16m2_u16m2(vn), vindex_mask, vl);
-        //vfloat16m2_t vs = vreinterpret_v_u16m2_f16m2(vadd_vv_u16m2(vloxei16_v_u16m2(xnn_table_exp2minus_k_over_64, vmul_vx_u16m2(vidx, 4, vl), vl), ve, vl));
-        vfloat16m2_t vs = __riscv_vreinterpret_v_u16m2_f16m2(__riscv_vsll_vx_u16m2(__riscv_vreinterpret_v_f16m2_u16m2(vn), 10, vl));
-        // remove magic bias
-        vn = __riscv_vfsub_vf_f16m2(vn, vmagic_bias, vl);
-        // find logarithm
-        vfloat16m2_t vt = __riscv_vfadd_vv_f16m2(__riscv_vfmul_vf_f16m2(vn, vln2_hi, vl), vz, vl);
-        vt = __riscv_vfmacc_vf_f16m2(vt, vln2_lo, vn, vl);
-        // calculate the quadratic term logarithmically.
-        //vfloat16m2_t vp = __riscv_vfmul_vf_f16m2(vt, vc2, vl);
-        //vp = vfsub_vv_f16m2(vt, __riscv_vfmul_vv_f16m2(vp, vt, vl), vl);
-        vfloat16m2_t vp = __riscv_vfadd_vf_f16m2(__riscv_vfmul_vf_f16m2(vt, vc2, vl), vc1, vl);
-        vt = __riscv_vfmul_vv_f16m2(vt, vs, vl);
-        vfloat16m2_t ve = vfmacc_vv_f16m2(vs, vp, vt, vl);
-        // caculate sigmoid polynomial approximation
-        //vfloat16m2_t vy = vfsub_vv_f16m2(vs, __riscv_vfmul_vv_f16m2(vs, vp, vl), vl);
-        vfloat16m2_t vd = __riscv_vfadd_vf_f16m2(ve, vone, vl);
-        vfloat16m2_t vr = __riscv_vfrdiv_vf_f16m2(vd, 1.0f, vl);
-        //vfloat16m2_t vf = vfdiv_vv_f16m2(vy, vd, vl);
+//     size_t size = batch / sizeof(__fp16);
+//     do {
+//         const size_t vl = __riscv_vsetvl_e16m2(size);
+//         vfloat16m2_t vx = __riscv_vle16_v_f16m2(input, vl);
+//         input += vl;
+//         // get abs
+//         vfloat16m2_t vz = __riscv_vfabs_v_f16m2(vx, vl);
+//         // vz*(-log2(e))+magic_bias
+//         vfloat16m2_t vn = __riscv_vfadd_vf_f16m2(__riscv_vfmul_vf_f16m2(vz, vminus_log2e, vl), vmagic_bias, vl);
+//         // get exponent
+//         //vuint16m2_t ve = vsll_vx_u16m2(vreinterpret_v_f16m2_u16m2(vn), 17, vl);
+//         // find index in lookup table using mask
+//         //vuint16m2_t vidx = vand_vx_u16m2(vreinterpret_v_f16m2_u16m2(vn), vindex_mask, vl);
+//         //vfloat16m2_t vs = vreinterpret_v_u16m2_f16m2(vadd_vv_u16m2(vloxei16_v_u16m2(xnn_table_exp2minus_k_over_64, vmul_vx_u16m2(vidx, 4, vl), vl), ve, vl));
+//         vfloat16m2_t vs = __riscv_vreinterpret_v_u16m2_f16m2(__riscv_vsll_vx_u16m2(__riscv_vreinterpret_v_f16m2_u16m2(vn), 10, vl));
+//         // remove magic bias
+//         vn = __riscv_vfsub_vf_f16m2(vn, vmagic_bias, vl);
+//         // find logarithm
+//         vfloat16m2_t vt = __riscv_vfadd_vv_f16m2(__riscv_vfmul_vf_f16m2(vn, vln2_hi, vl), vz, vl);
+//         vt = __riscv_vfmacc_vf_f16m2(vt, vln2_lo, vn, vl);
+//         // calculate the quadratic term logarithmically.
+//         //vfloat16m2_t vp = __riscv_vfmul_vf_f16m2(vt, vc2, vl);
+//         //vp = vfsub_vv_f16m2(vt, __riscv_vfmul_vv_f16m2(vp, vt, vl), vl);
+//         vfloat16m2_t vp = __riscv_vfadd_vf_f16m2(__riscv_vfmul_vf_f16m2(vt, vc2, vl), vc1, vl);
+//         vt = __riscv_vfmul_vv_f16m2(vt, vs, vl);
+//         vfloat16m2_t ve = vfmacc_vv_f16m2(vs, vp, vt, vl);
+//         // caculate sigmoid polynomial approximation
+//         //vfloat16m2_t vy = vfsub_vv_f16m2(vs, __riscv_vfmul_vv_f16m2(vs, vp, vl), vl);
+//         vfloat16m2_t vd = __riscv_vfadd_vf_f16m2(ve, vone, vl);
+//         vfloat16m2_t vr = __riscv_vfrdiv_vf_f16m2(vd, 1.0f, vl);
+//         //vfloat16m2_t vf = vfdiv_vv_f16m2(vy, vd, vl);
 
-        vfloat16m2_t vadj = __riscv_vfadd_vf_f16m2(__riscv_vfneg_v_f16m2(__riscv_vfmul_vv_f16m2(vr, vd, vl), vl), 2.0f, vl);
+//         vfloat16m2_t vadj = __riscv_vfadd_vf_f16m2(__riscv_vfneg_v_f16m2(__riscv_vfmul_vv_f16m2(vr, vd, vl), vl), 2.0f, vl);
 
-        vr = __riscv_vfmul_vv_f16m2(vr, vadj, vl);
-        vfloat16m2_t vf = __riscv_vfmul_vv_f16m2(ve, vr, vl);
+//         vr = __riscv_vfmul_vv_f16m2(vr, vadj, vl);
+//         vfloat16m2_t vf = __riscv_vfmul_vv_f16m2(ve, vr, vl);
 
-        vbool8_t mask = __riscv_vmfgt_vf_f16m2_b8(vz, vdenorm_cutoff, vl);
-        vf = __riscv_vfmerge_vfm_f16m2(mask, vf, 0.0f, vl);
+//         vbool8_t mask = __riscv_vmfgt_vf_f16m2_b8(vz, vdenorm_cutoff, vl);
+//         vf = __riscv_vfmerge_vfm_f16m2(mask, vf, 0.0f, vl);
 
-        mask = __riscv_vmfgt_vf_f16m2_b8(vx, 0.0f, vl);
-        vf = __riscv_vfneg_v_f16m2(mask, vf, vf, vl);
-        vf = __riscv_vfadd_vf_f16m2(mask, vf, vf, vone, vl);
+//         mask = __riscv_vmfgt_vf_f16m2_b8(vx, 0.0f, vl);
+//         vf = __riscv_vfneg_v_f16m2(mask, vf, vf, vl);
+//         vf = __riscv_vfadd_vf_f16m2(mask, vf, vf, vone, vl);
 
-        // store result
-        __riscv_vse16_v_f16m2(output, vf, vl);
+//         // store result
+//         __riscv_vse16_v_f16m2(output, vf, vl);
 
-        output += vl;
-        size -= vl;
-    } while (size > 0);
-}
+//         output += vl;
+//         size -= vl;
+//     } while (size > 0);
+// }
 
 void xnn_f16_vsigmoid_ukernel__thead_u2v(
         size_t batch,

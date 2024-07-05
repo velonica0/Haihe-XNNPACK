@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "math.h": "c",
-        "vunary.h": "c"
+        "vunary.h": "c",
+        "raddstoreexpminusmax.h": "c"
     }
 }
