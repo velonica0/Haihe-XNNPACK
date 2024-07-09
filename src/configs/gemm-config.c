@@ -5,6 +5,7 @@
 
 #include <assert.h>
 #include <stddef.h>
+#include <stdio.h>
 
 #if _WIN32
   #include <windows.h>
