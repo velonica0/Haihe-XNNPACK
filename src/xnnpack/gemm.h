@@ -75,8 +75,8 @@ DECLARE_BF16_GEMM_MINMAX_UKERNEL_FUNCTION(xnn_bf16_gemm_minmax_ukernel_5x4c8__ne
       size_t cn_stride,                                   \
       const union xnn_f16_default_params params[XNN_RESTRICT XNN_MIN_ELEMENTS(1)]);
 
-DECLARE_F16_GEMM_UKERNEL_FUNCTION(xnn_f16_gemm_ukernel_1x16__rvv_u2v)
-DECLARE_F16_GEMM_UKERNEL_FUNCTION(xnn_f16_gemm_ukernel_4x16__rvv_u2v)
+// DECLARE_F16_GEMM_UKERNEL_FUNCTION(xnn_f16_gemm_ukernel_1x16__rvv_u2v)
+// DECLARE_F16_GEMM_UKERNEL_FUNCTION(xnn_f16_gemm_ukernel_4x16__rvv_u2v)
 
 
 #define DECLARE_F16_GEMM_MINMAX_UKERNEL_FUNCTION(fn_name) \
@@ -124,8 +124,8 @@ DECLARE_F16_GEMM_MINMAX_UKERNEL_FUNCTION(xnn_f16_gemm_minmax_ukernel_5x16__avx2_
 DECLARE_F16_GEMM_MINMAX_UKERNEL_FUNCTION(xnn_f16_gemm_minmax_ukernel_6x8__avx2_broadcast)
 DECLARE_F16_GEMM_MINMAX_UKERNEL_FUNCTION(xnn_f16_gemm_minmax_ukernel_7x8__avx2_broadcast)
 
-DECLARE_F16_GEMM_MINMAX_UKERNEL_FUNCTION(xnn_f16_gemm_minmax_ukernel_1x16__rvv_u2v)
-DECLARE_F16_GEMM_MINMAX_UKERNEL_FUNCTION(xnn_f16_gemm_minmax_ukernel_4x16__rvv_u2v)
+// DECLARE_F16_GEMM_MINMAX_UKERNEL_FUNCTION(xnn_f16_gemm_minmax_ukernel_1x16__rvv_u2v)
+// DECLARE_F16_GEMM_MINMAX_UKERNEL_FUNCTION(xnn_f16_gemm_minmax_ukernel_4x16__rvv_u2v)
 
 DECLARE_F16_GEMM_MINMAX_UKERNEL_FUNCTION(xnn_f16_f32acc_gemm_minmax_ukernel_1x8__avx2_broadcast)
 DECLARE_F16_GEMM_MINMAX_UKERNEL_FUNCTION(xnn_f16_f32acc_gemm_minmax_ukernel_1x16__avx2_broadcast)

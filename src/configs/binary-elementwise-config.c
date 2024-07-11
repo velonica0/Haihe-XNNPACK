@@ -112,12 +112,12 @@ static void init_f16_vadd_config(void) {
       f16_vadd_config.init.f16_minmax = xnn_init_f16_minmax_avx_params;
       f16_vadd_config.minmax.element_tile = 16;
     }
-  #elif XNN_ARCH_RISCV && XNN_ENABLE_RISCV_VECTOR
-    f16_vadd_config.minmax.op_ukernel = (xnn_vbinary_ukernel_fn) xnn_f16_vadd_minmax_ukernel__rvv_u2v;
-    f16_vadd_config.minmax.opc_ukernel = (xnn_vbinary_ukernel_fn) xnn_f16_vaddc_minmax_ukernel__rvv_u2v;
-    f16_vadd_config.minmax.ropc_ukernel = (xnn_vbinary_ukernel_fn) xnn_f16_vaddc_minmax_ukernel__rvv_u2v;
-    f16_vadd_config.init.f16_minmax = xnn_init_f16_minmax_fp16arith_params;
-    f16_vadd_config.minmax.element_tile = 16;
+  // #elif XNN_ARCH_RISCV && XNN_ENABLE_RISCV_VECTOR
+  //   f16_vadd_config.minmax.op_ukernel = (xnn_vbinary_ukernel_fn) xnn_f16_vadd_minmax_ukernel__rvv_u2v;
+  //   f16_vadd_config.minmax.opc_ukernel = (xnn_vbinary_ukernel_fn) xnn_f16_vaddc_minmax_ukernel__rvv_u2v;
+  //   f16_vadd_config.minmax.ropc_ukernel = (xnn_vbinary_ukernel_fn) xnn_f16_vaddc_minmax_ukernel__rvv_u2v;
+  //   f16_vadd_config.init.f16_minmax = xnn_init_f16_minmax_fp16arith_params;
+  //   f16_vadd_config.minmax.element_tile = 16;
   #endif
 }
 
@@ -248,12 +248,12 @@ static void init_f16_vmul_config(void) {
       f16_vmul_config.init.f16_minmax = xnn_init_f16_minmax_avx_params;
       f16_vmul_config.minmax.element_tile = 16;
     }
-  #elif XNN_ARCH_RISCV && XNN_ENABLE_RISCV_VECTOR
-    f16_vmul_config.minmax.op_ukernel = (xnn_vbinary_ukernel_fn) xnn_f16_vmul_minmax_ukernel__rvv_u2v;
-    f16_vmul_config.minmax.opc_ukernel = (xnn_vbinary_ukernel_fn) xnn_f16_vmulc_minmax_ukernel__rvv_u2v;
-    f16_vmul_config.minmax.ropc_ukernel = (xnn_vbinary_ukernel_fn) xnn_f16_vmulc_minmax_ukernel__rvv_u2v;
-    f16_vmul_config.init.f16_minmax = xnn_init_f16_minmax_fp16arith_params;
-    f16_vmul_config.minmax.element_tile = 16;
+  // #elif XNN_ARCH_RISCV && XNN_ENABLE_RISCV_VECTOR
+  //   f16_vmul_config.minmax.op_ukernel = (xnn_vbinary_ukernel_fn) xnn_f16_vmul_minmax_ukernel__rvv_u2v;
+  //   f16_vmul_config.minmax.opc_ukernel = (xnn_vbinary_ukernel_fn) xnn_f16_vmulc_minmax_ukernel__rvv_u2v;
+  //   f16_vmul_config.minmax.ropc_ukernel = (xnn_vbinary_ukernel_fn) xnn_f16_vmulc_minmax_ukernel__rvv_u2v;
+  //   f16_vmul_config.init.f16_minmax = xnn_init_f16_minmax_fp16arith_params;
+  //   f16_vmul_config.minmax.element_tile = 16;
   #endif
 }
 

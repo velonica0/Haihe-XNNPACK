@@ -444,10 +444,10 @@ static void init_f16_sigmoid_config(void) {
       f16_sigmoid_config.init.f16_sigmoid = xnn_init_f16_sigmoid_avx2_rr1_p2_params;
       f16_sigmoid_config.element_tile = 32;
     }
-  #elif XNN_ARCH_RISCV && XNN_ENABLE_RISCV_VECTOR
-    f16_sigmoid_config.ukernel = (xnn_vunary_ukernel_fn) xnn_f16_vsigmoid_ukernel__thead_u2v;
-    f16_sigmoid_config.init.f16_sigmoid = xnn_init_f16_sigmoid_fp16arith_rr2_p2_params;
-    f16_sigmoid_config.element_tile = 16;
+  // #elif XNN_ARCH_RISCV && XNN_ENABLE_RISCV_VECTOR
+  //   f16_sigmoid_config.ukernel = (xnn_vunary_ukernel_fn) xnn_f16_vsigmoid_ukernel__thead_u2v;
+  //   f16_sigmoid_config.init.f16_sigmoid = xnn_init_f16_sigmoid_fp16arith_rr2_p2_params;
+  //   f16_sigmoid_config.element_tile = 16;
   #endif
 }
 

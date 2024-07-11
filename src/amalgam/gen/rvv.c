@@ -2774,821 +2774,821 @@ void xnn_f32_vhswish_ukernel__rvv_u2v(
     } while (size > 0);
 }
 
-void xnn_f16_gemm_ukernel_1x16__rvv_u2v(
-        size_t mr,
-        size_t nc,
-        size_t kc,
-        const void* restrict a,
-        size_t a_stride,
-        const void* restrict w,
-        void* restrict c,
-        size_t cm_stride,
-        size_t cn_stride,
-        const union xnn_f16_default_params params[restrict XNN_MIN_ELEMENTS(1)])
-{
-    assert(mr != 0);
-    assert(mr <= 1);
-    assert(nc != 0);
-    assert(kc != 0);
-    assert(kc % sizeof(__fp16) == 0);
-    assert(a != NULL);
-    assert(w != NULL);
-    assert(c != NULL);
-
-    const __fp16* a0 = a;
-    __fp16* c0 = c;
-    __fp16* hw = (__fp16*)w;
-
-    size_t kcl = kc / sizeof(__fp16);
-
-    do {
-        size_t vl = __riscv_vsetvl_e16m2(nc);
-        vfloat16m2_t vacc = __riscv_vle16_v_f16m2(hw, 16);
-        hw += 16;
-        for(size_t k = 0; k < kcl ; k++){
-            vfloat16m2_t vw = __riscv_vle16_v_f16m2(hw, 16);
-            hw += 16;
-            vacc = __riscv_vfmacc_vf_f16m2(vacc, *a0, vw, 16);
-            a0++;
-        }
-        __riscv_vse16_v_f16m2(c0, vacc, vl);
-        if(nc >= 16){
-            c0 = (__fp16*) ((uintptr_t) c0 + cn_stride);
-            a0 = (const void*) ((uintptr_t) a0 - kc);
-        }
-        nc -= vl;
-    } while (nc != 0);
-}
-
-void xnn_f16_gemm_ukernel_4x16__rvv_u2v(
-        size_t mr,
-        size_t nc,
-        size_t kc,
-        const void* restrict a,
-        size_t a_stride,
-        const void* restrict w,
-        void* restrict c,
-        size_t cm_stride,
-        size_t cn_stride,
-        const union xnn_f16_default_params params[restrict XNN_MIN_ELEMENTS(1)])
-{
-    assert(mr != 0);
-    assert(mr <= 4); // max process 1 row
-    assert(nc != 0);
-    assert(kc != 0);
-    assert(kc % sizeof(__fp16) == 0);
-    assert(a != NULL);
-    assert(w != NULL);
-    assert(c != NULL);
-
-    const __fp16* a0 = (__fp16*)a;
-    __fp16* c0 = c;
-    const __fp16* a1 = (const __fp16*) ((uintptr_t) a0 + a_stride);
-    __fp16* c1 = (__fp16*) ((uintptr_t) c0 + cm_stride);
-    if XNN_UNPREDICTABLE(mr < 2) {
-        a1 = a0;
-        c1 = c0;
-    }
-    const __fp16* a2 = (const __fp16*) ((uintptr_t) a1 + a_stride);
-    __fp16* c2 = (__fp16*) ((uintptr_t) c1 + cm_stride);
-    if XNN_UNPREDICTABLE(mr <= 2) {
-        a2 = a1;
-        c2 = c1;
-    }
-    const __fp16* a3 = (const __fp16*) ((uintptr_t) a2 + a_stride);
-    __fp16* c3 = (__fp16*) ((uintptr_t) c2 + cm_stride);
-    if XNN_UNPREDICTABLE(mr != 4) {
-        a3 = a2;
-        c3 = c2;
-    }
-
-    __fp16* hw = (__fp16*)w;
-
-
-    size_t kcl = kc / sizeof(__fp16);
-
-    do {
-        size_t vl = __riscv_vsetvl_e16m2(nc); // vector length
-        vfloat16m2_t vacc0 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
-        vfloat16m2_t vacc1 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
-        vfloat16m2_t vacc2 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
-        vfloat16m2_t vacc3 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
-        hw += 16;
-        for(size_t k = 0; k < kcl ; k++){
-            vfloat16m2_t vw = __riscv_vle16_v_f16m2(hw, 16);
-            hw += 16;
-            vacc0 = __riscv_vfmacc_vf_f16m2(vacc0, *a0, vw, 16); // update 1st row count
-            vacc1 = __riscv_vfmacc_vf_f16m2(vacc1, *a1, vw, 16); // update 1st row count
-            vacc2 = __riscv_vfmacc_vf_f16m2(vacc2, *a2, vw, 16); // update 1st row count
-            vacc3 = __riscv_vfmacc_vf_f16m2(vacc3, *a3, vw, 16); // update 1st row count
-            a0++;
-            a1++;
-            a2++;
-            a3++;
-        }
-        __riscv_vse16_v_f16m2(c0, vacc0, vl); // store 1st row result
-        __riscv_vse16_v_f16m2(c1, vacc1, vl); // store 1st row result
-        __riscv_vse16_v_f16m2(c2, vacc2, vl); // store 1st row result
-        __riscv_vse16_v_f16m2(c3, vacc3, vl); // store 1st row result
-        if(nc >= 16){
-            c0 = (__fp16*) ((uintptr_t) c0 + cn_stride); // update 1st row matrix C pointer
-            c1 = (__fp16*) ((uintptr_t) c1 + cn_stride); // update 1st row matrix C pointer
-            c2 = (__fp16*) ((uintptr_t) c2 + cn_stride); // update 1st row matrix C pointer
-            c3 = (__fp16*) ((uintptr_t) c3 + cn_stride); // update 1st row matrix C pointer
-            a0 = (const void*) ((uintptr_t) a0 - kc); // update 1st row matrix A pointer
-            a1 = (const void*) ((uintptr_t) a1 - kc); // update 1st row matrix A pointer
-            a2 = (const void*) ((uintptr_t) a2 - kc); // update 1st row matrix A pointer
-            a3 = (const void*) ((uintptr_t) a3 - kc); // update 1st row matrix A pointer
-        }
-        nc -= vl;
-    } while (nc != 0);
-}
-
-void xnn_f16_igemm_ukernel_1x16__rvv_u2v(
-        size_t mr,
-        size_t nc,
-        size_t kc,
-        size_t ks,
-        const void** restrict a,
-        const void* restrict w,
-        void* restrict c,
-        size_t cm_stride,
-        size_t cn_stride,
-        size_t a_offset,
-        const void* zero,
-        const union xnn_f16_default_params params[restrict XNN_MIN_ELEMENTS(1)])
-{
-    assert(mr != 0);
-    assert(mr <= 1);
-    assert(nc != 0);
-    assert(kc != 0);
-    assert(kc % sizeof(float) == 0);
-    assert(ks != 0);
-    assert(ks % (1 * sizeof(void*)) == 0);
-    assert(a_offset % sizeof(float) == 0);
-    assert(a != NULL);
-    assert(w != NULL);
-    assert(c != NULL);
-
-    __fp16* c0 = c;
-
-    __fp16* hw = (__fp16*)w;
-
-    do {
-        size_t vl = __riscv_vsetvl_e16m2(nc); // vector length
-        vfloat16m2_t vacc0 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
-        hw += 16;
-
-        size_t p = ks;
-        size_t kcl = kc / sizeof(float);
-        do {
-            const float* restrict a0 = a[0];
-            assert(a0 != NULL);
-            if XNN_UNPREDICTABLE(a0 != zero) {
-                a0 = (const float*) ((uintptr_t) a0 + a_offset);
-            }
-            a += 1;
-
-            size_t k = kc;
-            for(size_t k = 0; k < kcl ; k++){
-                vfloat16m2_t vw = __riscv_vle16_v_f16m2(hw, 16);
-                hw += 16;
-                vacc0 = __riscv_vfmacc_vf_f16m2(vacc0, *a0, vw, 16); // update 1st row count
-                a0++;
-            }
-            p -= 1 * sizeof(void*);
-        } while (p != 0);
-        __riscv_vse16_v_f16m2(c0, vacc0, vl); // store 1st row result
-
-        if XNN_LIKELY(nc >= 16) {
-            c0 = (__fp16*) ((uintptr_t) c0 + cn_stride);
-            a = (const void**restrict) ((uintptr_t) a - ks);
-        }
-        nc -= vl;
-    } while (nc != 0);
-}
-
-void xnn_f16_igemm_ukernel_4x16__rvv_u2v(
-        size_t mr,
-        size_t nc,
-        size_t kc,
-        size_t ks,
-        const void** restrict a,
-        const void* restrict w,
-        void* restrict c,
-        size_t cm_stride,
-        size_t cn_stride,
-        size_t a_offset,const void* zero,//todo
-        const union xnn_f16_default_params params[restrict XNN_MIN_ELEMENTS(1)])
-{
-    assert(mr != 0);
-    assert(mr <= 4);
-    assert(nc != 0);
-    assert(kc != 0);
-    assert(kc % sizeof(__fp16) == 0);
-    assert(ks != 0);
-    assert(ks % (4 * sizeof(void*)) == 0);
-    assert(a_offset % sizeof(__fp16) == 0);
-    assert(a != NULL);
-    assert(w != NULL);
-    assert(c != NULL);
-
-    __fp16* c0 = c;
-    __fp16* c1 = (__fp16*) ((uintptr_t) c0 + cm_stride);
-    if XNN_UNPREDICTABLE(mr < 2) {
-        c1 = c0;
-    }
-    __fp16* c2 = (__fp16*) ((uintptr_t) c1 + cm_stride);
-    if XNN_UNPREDICTABLE(mr <= 2) {
-        c2 = c1;
-    }
-    __fp16* c3 = (__fp16*) ((uintptr_t) c2 + cm_stride);
-    if XNN_UNPREDICTABLE(mr != 4) {
-        c3 = c2;
-    }
-
-    __fp16* hw = (__fp16*)w;
-
-    do {
-        size_t vl = __riscv_vsetvl_e16m2(nc); // vector length
-        vfloat16m2_t vacc0 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
-        vfloat16m2_t vacc1 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
-        vfloat16m2_t vacc2 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
-        vfloat16m2_t vacc3 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
-        hw += 16;
-
-        size_t p = ks;
-        size_t kcl = kc / sizeof(__fp16);
-        do {
-            const __fp16* restrict a0 = a[0];
-            assert(a0 != NULL);
-            if XNN_UNPREDICTABLE(a0 != zero) {
-                a0 = (const __fp16*) ((uintptr_t) a0 + a_offset);
-            }
-            const __fp16* restrict a1 = a[1];
-            assert(a1 != NULL);
-            if XNN_UNPREDICTABLE(a1 != zero) {
-                a1 = (const __fp16*) ((uintptr_t) a1 + a_offset);
-            }
-            const __fp16* restrict a2 = a[2];
-            assert(a2 != NULL);
-            if XNN_UNPREDICTABLE(a2 != zero) {
-                a2 = (const __fp16*) ((uintptr_t) a2 + a_offset);
-            }
-            const __fp16* restrict a3 = a[3];
-            assert(a3 != NULL);
-            if XNN_UNPREDICTABLE(a3 != zero) {
-                a3 = (const __fp16*) ((uintptr_t) a3 + a_offset);
-            }
-            a += 4;
-
-            size_t k = kc;
-            for(size_t k = 0; k < kcl ; k++){
-                vfloat16m2_t vw = __riscv_vle16_v_f16m2(hw, 16);
-                hw += 16;
-                vacc0 = __riscv_vfmacc_vf_f16m2(vacc0, *a0, vw, 16); // update 1st row count
-                vacc1 = __riscv_vfmacc_vf_f16m2(vacc1, *a1, vw, 16); // update 1st row count
-                vacc2 = __riscv_vfmacc_vf_f16m2(vacc2, *a2, vw, 16); // update 1st row count
-                vacc3 = __riscv_vfmacc_vf_f16m2(vacc3, *a3, vw, 16); // update 1st row count
-                a0++;
-                a1++;
-                a2++;
-                a3++;
-            }
-            p -= 4 * sizeof(void*);//todo
-        } while (p != 0);
-        __riscv_vse16_v_f16m2(c0, vacc0, vl); // store 1st row result
-        __riscv_vse16_v_f16m2(c1, vacc1, vl); // store 1st row result
-        __riscv_vse16_v_f16m2(c2, vacc2, vl); // store 1st row result
-        __riscv_vse16_v_f16m2(c3, vacc3, vl); // store 1st row result
-
-        if XNN_LIKELY(nc >= 16) {
-            c3 = (__fp16*) ((uintptr_t) c3 + cn_stride);
-            c2 = (__fp16*) ((uintptr_t) c2 + cn_stride);
-            c1 = (__fp16*) ((uintptr_t) c1 + cn_stride);
-            c0 = (__fp16*) ((uintptr_t) c0 + cn_stride);
-
-            a = (const void**restrict) ((uintptr_t) a - ks);
-        }
-        nc -= vl;
-    } while (nc != 0);
-}
-
-void xnn_f16_gemm_minmax_ukernel_1x16__rvv_u2v(
-        size_t mr,
-        size_t nc,
-        size_t kc,
-        const void* restrict a,
-        size_t a_stride,
-        const void* restrict w,
-        void* restrict c,
-        size_t cm_stride,
-        size_t cn_stride,
-        const union xnn_f16_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
-{
-    assert(mr != 0);
-    assert(mr <= 1);
-    assert(nc != 0);
-    assert(kc != 0);
-    assert(kc % sizeof(__fp16) == 0);
-    assert(a != NULL);
-    assert(w != NULL);
-    assert(c != NULL);
-
-    const __fp16* a0 = a;
-    __fp16* c0 = c;
-    size_t kcl = kc / sizeof(__fp16);
-
-    __fp16 vmin, vmax;
-    memcpy(&vmin, &params->fp16arith.min, sizeof(vmin));
-    memcpy(&vmax, &params->fp16arith.max, sizeof(vmax));
-
-    __fp16* hw = (__fp16*)w;
-
-    do {
-        size_t vl = __riscv_vsetvl_e16m2(nc);
-        vfloat16m2_t vacc = __riscv_vle16_v_f16m2(hw, 16);
-        hw += 16;
-        for(size_t k = 0; k < kcl ; k++){
-            vfloat16m2_t vw = __riscv_vle16_v_f16m2(hw, 16);
-            hw += 16;
-            vacc = __riscv_vfmacc_vf_f16m2(vacc, *a0, vw, 16);
-            a0++;
-        }
-        vacc = __riscv_vfmax_vf_f16m2(vacc, vmin, vl);
-        vacc = __riscv_vfmin_vf_f16m2(vacc, vmax, vl);
-        __riscv_vse16_v_f16m2(c0, vacc, vl);
-        if(nc >= 16){
-            c0 = (__fp16*) ((uintptr_t) c0 + cn_stride);
-            a0 = (const void*) ((uintptr_t) a0 - kc);
-        }
-        nc -= vl;
-    } while (nc != 0);
-}
-
-void xnn_f16_gemm_minmax_ukernel_4x16__rvv_u2v(
-        size_t mr,
-        size_t nc,
-        size_t kc,
-        const void* restrict a,
-        size_t a_stride,
-        const void* restrict w,
-        void* restrict c,
-        size_t cm_stride,
-        size_t cn_stride,
-        const union xnn_f16_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
-{
-    assert(mr != 0);
-    assert(mr <= 4); // max process 1 row
-    assert(nc != 0);
-    assert(kc != 0);
-    assert(kc % sizeof(__fp16) == 0);
-    assert(a != NULL);
-    assert(w != NULL);
-    assert(c != NULL);
-
-    const __fp16* a0 = a;
-    __fp16* c0 = c;
-    const __fp16* a1 = (const __fp16*) ((uintptr_t) a0 + a_stride);
-    __fp16* c1 = (__fp16*) ((uintptr_t) c0 + cm_stride);
-    if XNN_UNPREDICTABLE(mr < 2) {
-        a1 = a0;
-        c1 = c0;
-    }
-    const __fp16* a2 = (const __fp16*) ((uintptr_t) a1 + a_stride);
-    __fp16* c2 = (__fp16*) ((uintptr_t) c1 + cm_stride);
-    if XNN_UNPREDICTABLE(mr <= 2) {
-        a2 = a1;
-        c2 = c1;
-    }
-    const __fp16* a3 = (const __fp16*) ((uintptr_t) a2 + a_stride);
-    __fp16* c3 = (__fp16*) ((uintptr_t) c2 + cm_stride);
-    if XNN_UNPREDICTABLE(mr != 4) {
-        a3 = a2;
-        c3 = c2;
-    }
-
-    __fp16 vmin, vmax;
-    memcpy(&vmin, &params->fp16arith.min, sizeof(vmin));
-    memcpy(&vmax, &params->fp16arith.max, sizeof(vmax));
-
-    __fp16* hw = (__fp16*)w;
-
-    size_t kcl = kc / sizeof(__fp16);
-
-    do {
-        size_t vl = __riscv_vsetvl_e16m2(nc); // vector length
-        vfloat16m2_t vacc0 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
-        vfloat16m2_t vacc1 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
-        vfloat16m2_t vacc2 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
-        vfloat16m2_t vacc3 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
-        hw += 16;
-        for(size_t k = 0; k < kcl ; k++){
-            vfloat16m2_t vw = __riscv_vle16_v_f16m2(hw, 16);
-            hw += 16;
-            vacc0 = __riscv_vfmacc_vf_f16m2(vacc0, *a0, vw, 16); // update 1st row count
-            vacc1 = __riscv_vfmacc_vf_f16m2(vacc1, *a1, vw, 16); // update 1st row count
-            vacc2 = __riscv_vfmacc_vf_f16m2(vacc2, *a2, vw, 16); // update 1st row count
-            vacc3 = __riscv_vfmacc_vf_f16m2(vacc3, *a3, vw, 16); // update 1st row count
-            a0++;
-            a1++;
-            a2++;
-            a3++;
-        }
-        vacc0 = __riscv_vfmax_vf_f16m2(vacc0, vmin, vl);
-        vacc1 = __riscv_vfmax_vf_f16m2(vacc1, vmin, vl);
-        vacc2 = __riscv_vfmax_vf_f16m2(vacc2, vmin, vl);
-        vacc3 = __riscv_vfmax_vf_f16m2(vacc3, vmin, vl);
-
-        vacc0 = __riscv_vfmin_vf_f16m2(vacc0, vmax, vl);
-        vacc1 = __riscv_vfmin_vf_f16m2(vacc1, vmax, vl);
-        vacc2 = __riscv_vfmin_vf_f16m2(vacc2, vmax, vl);
-        vacc3 = __riscv_vfmin_vf_f16m2(vacc3, vmax, vl);
-
-        __riscv_vse16_v_f16m2(c0, vacc0, vl); // store 1st row result
-        __riscv_vse16_v_f16m2(c1, vacc1, vl); // store 1st row result
-        __riscv_vse16_v_f16m2(c2, vacc2, vl); // store 1st row result
-        __riscv_vse16_v_f16m2(c3, vacc3, vl); // store 1st row result
-        if(nc >= 16){
-            c0 = (__fp16*) ((uintptr_t) c0 + cn_stride); // update 1st row matrix C pointer
-            c1 = (__fp16*) ((uintptr_t) c1 + cn_stride); // update 1st row matrix C pointer
-            c2 = (__fp16*) ((uintptr_t) c2 + cn_stride); // update 1st row matrix C pointer
-            c3 = (__fp16*) ((uintptr_t) c3 + cn_stride); // update 1st row matrix C pointer
-            a0 = (const void*) ((uintptr_t) a0 - kc); // update 1st row matrix A pointer
-            a1 = (const void*) ((uintptr_t) a1 - kc); // update 1st row matrix A pointer
-            a2 = (const void*) ((uintptr_t) a2 - kc); // update 1st row matrix A pointer
-            a3 = (const void*) ((uintptr_t) a3 - kc); // update 1st row matrix A pointer
-        }
-        nc -= vl;
-    } while (nc != 0);
-}
-
-void xnn_f16_igemm_minmax_ukernel_1x16__rvv_u2v(
-        size_t mr,
-        size_t nc,
-        size_t kc,
-        size_t ks,
-        const void** restrict a,
-        const void* restrict w,
-        void* restrict c,
-        size_t cm_stride,
-        size_t cn_stride,
-        size_t a_offset,
-        const void* zero,
-        const union xnn_f16_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
-{
-    assert(mr != 0);
-    assert(mr <= 1);
-    assert(nc != 0);
-    assert(kc != 0);
-    assert(kc % sizeof(__fp16) == 0);
-    assert(ks != 0);
-    assert(ks % (1 * sizeof(void*)) == 0);
-    assert(a_offset % sizeof(__fp16) == 0);
-    assert(a != NULL);
-    assert(w != NULL);
-    assert(c != NULL);
-
-    __fp16* c0 = c;
-
-    __fp16 vmin, vmax;
-    memcpy(&vmin, &params->fp16arith.min, sizeof(vmin));
-    memcpy(&vmax, &params->fp16arith.max, sizeof(vmax));
-
-    __fp16* hw = (__fp16*)w;
-
-
-    do {
-        size_t vl = __riscv_vsetvl_e16m2(nc); // vector length
-        vfloat16m2_t vacc0 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
-        hw += 16;
-
-        size_t p = ks;
-        size_t kcl = kc / sizeof(__fp16);
-        do {
-            const __fp16* restrict a0 = a[0];
-            assert(a0 != NULL);
-            if XNN_UNPREDICTABLE(a0 != zero) {
-                a0 = (const __fp16*) ((uintptr_t) a0 + a_offset);
-            }
-            a += 1;
-
-            size_t k = kc;
-            for(size_t k = 0; k < kcl ; k++){
-                vfloat16m2_t vw = __riscv_vle16_v_f16m2(hw, 16);
-                hw += 16;
-                vacc0 = __riscv_vfmacc_vf_f16m2(vacc0, *a0, vw, 16); // update 1st row count
-                a0++;
-            }
-            p -= 1 * sizeof(void*);
-        } while (p != 0);
-        vacc0 = __riscv_vfmax_vf_f16m2(vacc0, vmin, vl);
-        vacc0 = __riscv_vfmin_vf_f16m2(vacc0, vmax, vl);
-        __riscv_vse16_v_f16m2(c0, vacc0, vl); // store 1st row result
-
-        if XNN_LIKELY(nc >= 16) {
-            c0 = (__fp16*) ((uintptr_t) c0 + cn_stride);
-            a = (const void**restrict) ((uintptr_t) a - ks);
-        }
-        nc -= vl;
-    } while (nc != 0);
-}
-
-void xnn_f16_igemm_minmax_ukernel_4x16__rvv_u2v(
-        size_t mr,
-        size_t nc,
-        size_t kc,
-        size_t ks,
-        const void** restrict a,
-        const void* restrict w,
-        void* restrict c,
-        size_t cm_stride,
-        size_t cn_stride,
-        size_t a_offset,const void* zero,//todo
-        const union xnn_f16_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
-{
-    assert(mr != 0);
-    assert(mr <= 4);
-    assert(nc != 0);
-    assert(kc != 0);
-    assert(kc % sizeof(__fp16) == 0);
-    assert(ks != 0);
-    assert(ks % (4 * sizeof(void*)) == 0);
-    assert(a_offset % sizeof(__fp16) == 0);
-    assert(a != NULL);
-    assert(w != NULL);
-    assert(c != NULL);
-
-    __fp16* c0 = c;
-    __fp16* c1 = (__fp16*) ((uintptr_t) c0 + cm_stride);
-    if XNN_UNPREDICTABLE(mr < 2) {
-        c1 = c0;
-    }
-    __fp16* c2 = (__fp16*) ((uintptr_t) c1 + cm_stride);
-    if XNN_UNPREDICTABLE(mr <= 2) {
-        c2 = c1;
-    }
-    __fp16* c3 = (__fp16*) ((uintptr_t) c2 + cm_stride);
-    if XNN_UNPREDICTABLE(mr != 4) {
-        c3 = c2;
-    }
-
-    __fp16 vmin, vmax;
-    memcpy(&vmin, &params->fp16arith.min, sizeof(vmin));
-    memcpy(&vmax, &params->fp16arith.max, sizeof(vmax));
-
-    __fp16* hw = (__fp16*)w;
-
-
-    do {
-        size_t vl = __riscv_vsetvl_e16m2(nc); // vector length
-        vfloat16m2_t vacc0 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
-        vfloat16m2_t vacc1 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
-        vfloat16m2_t vacc2 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
-        vfloat16m2_t vacc3 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
-
-        hw += 16;
-
-        size_t p = ks;
-        size_t kcl = kc / sizeof(__fp16);
-        do {
-            const __fp16* restrict a0 = a[0];
-            assert(a0 != NULL);
-            if XNN_UNPREDICTABLE(a0 != zero) {
-                a0 = (const __fp16*) ((uintptr_t) a0 + a_offset);
-            }
-            const __fp16* restrict a1 = a[1];
-            assert(a1 != NULL);
-            if XNN_UNPREDICTABLE(a1 != zero) {
-                a1 = (const __fp16*) ((uintptr_t) a1 + a_offset);
-            }
-            const __fp16* restrict a2 = a[2];
-            assert(a2 != NULL);
-            if XNN_UNPREDICTABLE(a2 != zero) {
-                a2 = (const __fp16*) ((uintptr_t) a2 + a_offset);
-            }
-            const __fp16* restrict a3 = a[3];
-            assert(a3 != NULL);
-            if XNN_UNPREDICTABLE(a3 != zero) {
-                a3 = (const __fp16*) ((uintptr_t) a3 + a_offset);
-            }
-            a += 4;
-
-            size_t k = kc;
-            for(size_t k = 0; k < kcl ; k++){
-                vfloat16m2_t vw = __riscv_vle16_v_f16m2(hw, 16);
-                hw += 16;
-                vacc0 = __riscv_vfmacc_vf_f16m2(vacc0, *a0, vw, 16); // update 1st row count
-                vacc1 = __riscv_vfmacc_vf_f16m2(vacc1, *a1, vw, 16); // update 1st row count
-                vacc2 = __riscv_vfmacc_vf_f16m2(vacc2, *a2, vw, 16); // update 1st row count
-                vacc3 = __riscv_vfmacc_vf_f16m2(vacc3, *a3, vw, 16); // update 1st row count
-                a0++;
-                a1++;
-                a2++;
-                a3++;
-            }
-            p -= 4 * sizeof(void*);//todo
-        } while (p != 0);
-
-        vacc0 = __riscv_vfmax_vf_f16m2(vacc0, vmin, vl);
-        vacc1 = __riscv_vfmax_vf_f16m2(vacc1, vmin, vl);
-        vacc2 = __riscv_vfmax_vf_f16m2(vacc2, vmin, vl);
-        vacc3 = __riscv_vfmax_vf_f16m2(vacc3, vmin, vl);
-
-        vacc0 = __riscv_vfmin_vf_f16m2(vacc0, vmax, vl);
-        vacc1 = __riscv_vfmin_vf_f16m2(vacc1, vmax, vl);
-        vacc2 = __riscv_vfmin_vf_f16m2(vacc2, vmax, vl);
-        vacc3 = __riscv_vfmin_vf_f16m2(vacc3, vmax, vl);
-
-        __riscv_vse16_v_f16m2(c0, vacc0, vl); // store 1st row result
-        __riscv_vse16_v_f16m2(c1, vacc1, vl); // store 1st row result
-        __riscv_vse16_v_f16m2(c2, vacc2, vl); // store 1st row result
-        __riscv_vse16_v_f16m2(c3, vacc3, vl); // store 1st row result
-
-        if XNN_LIKELY(nc >= 16) {
-            c3 = (__fp16*) ((uintptr_t) c3 + cn_stride);
-            c2 = (__fp16*) ((uintptr_t) c2 + cn_stride);
-            c1 = (__fp16*) ((uintptr_t) c1 + cn_stride);
-            c0 = (__fp16*) ((uintptr_t) c0 + cn_stride);
-
-            a = (const void**restrict) ((uintptr_t) a - ks);
-        }
-        nc -= vl;
-    } while (nc != 0);
-}
-
-void xnn_f16_maxpool_minmax_ukernel_9p8x__rvv_u2v(
-        size_t output_pixels,
-        size_t kernel_elements,
-        size_t channels,
-        const void** input,
-        size_t input_offset,
-        void* output,
-        size_t input_increment,
-        size_t output_increment,
-        const union xnn_f16_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
-{
-    assert(output_pixels != 0);
-    assert(kernel_elements != 0);
-    assert(channels != 0);
-
-    __fp16 voutput_min, voutput_max;
-    memcpy(&voutput_min, &params->fp16arith.min, sizeof(voutput_min));
-    memcpy(&voutput_max, &params->fp16arith.max, sizeof(voutput_max));
-
-    do {
-        __fp16* o = output;
-        {
-            const __fp16* i0 = *input++;
-            const __fp16* i1 = *input++;
-            const __fp16* i2 = *input++;
-            const __fp16* i3 = *input++;
-            const __fp16* i4 = *input++;
-            const __fp16* i5 = *input++;
-            const __fp16* i6 = *input++;
-            const __fp16* i7 = *input++;
-            const __fp16* i8 = *input++;
-            i0 = (const __fp16*) ((uintptr_t) i0 + input_offset);
-            i1 = (const __fp16*) ((uintptr_t) i1 + input_offset);
-            i2 = (const __fp16*) ((uintptr_t) i2 + input_offset);
-            i3 = (const __fp16*) ((uintptr_t) i3 + input_offset);
-            i4 = (const __fp16*) ((uintptr_t) i4 + input_offset);
-            i5 = (const __fp16*) ((uintptr_t) i5 + input_offset);
-            i6 = (const __fp16*) ((uintptr_t) i6 + input_offset);
-            i7 = (const __fp16*) ((uintptr_t) i7 + input_offset);
-            i8 = (const __fp16*) ((uintptr_t) i8 + input_offset);
-            if (kernel_elements < 2) {
-                i1 = i0;
-            }
-            if (kernel_elements <= 2) {
-                i2 = i0;
-            }
-            if (kernel_elements < 4) {
-                i3 = i0;
-            }
-            if (kernel_elements <= 4) {
-                i4 = i0;
-            }
-            if (kernel_elements < 6) {
-                i5 = i0;
-            }
-            if (kernel_elements <= 6) {
-                i6 = i0;
-            }
-            if (kernel_elements < 8) {
-                i7 = i0;
-            }
-            if (kernel_elements <= 8) {
-                i8 = i0;
-            }
-
-            size_t c = channels;
-            do {
-                size_t vl = __riscv_vsetvl_e16m2(c);
-                vfloat16m2_t vi0 = __riscv_vle16_v_f16m2(i0, vl); i0 += vl;
-                vfloat16m2_t vi1 = __riscv_vle16_v_f16m2(i1, vl); i1 += vl;
-                vfloat16m2_t vi2 = __riscv_vle16_v_f16m2(i2, vl); i2 += vl;
-                vfloat16m2_t vi3 = __riscv_vle16_v_f16m2(i3, vl); i3 += vl;
-                vfloat16m2_t vi4 = __riscv_vle16_v_f16m2(i4, vl); i4 += vl;
-                vfloat16m2_t vi5 = __riscv_vle16_v_f16m2(i5, vl); i5 += vl;
-                vfloat16m2_t vi6 = __riscv_vle16_v_f16m2(i6, vl); i6 += vl;
-                vfloat16m2_t vi7 = __riscv_vle16_v_f16m2(i7, vl); i7 += vl;
-                vfloat16m2_t vi8 = __riscv_vle16_v_f16m2(i8, vl); i8 += vl;
-
-                vfloat16m2_t vmax01 = __riscv_vfmax_vv_f16m2(vi0, vi1, vl);
-                vfloat16m2_t vmax23 = __riscv_vfmax_vv_f16m2(vi2, vi3, vl);
-                vfloat16m2_t vmax45 = __riscv_vfmax_vv_f16m2(vi4, vi5, vl);
-                vfloat16m2_t vmax67 = __riscv_vfmax_vv_f16m2(vi6, vi7, vl);
-                vfloat16m2_t vmax018 = __riscv_vfmax_vv_f16m2(vmax01, vi8, vl);
-
-                vfloat16m2_t vmax2345 = __riscv_vfmax_vv_f16m2(vmax23, vmax45, vl);
-                vfloat16m2_t vmax01678 = __riscv_vfmax_vv_f16m2(vmax018, vmax67, vl);
-                vfloat16m2_t vout = __riscv_vfmax_vv_f16m2(vmax2345, vmax01678, vl);
-                vout = __riscv_vfmax_vf_f16m2(vout, voutput_min, vl);
-                vout = __riscv_vfmin_vf_f16m2(vout, voutput_max, vl);
-
-                __riscv_vse16_v_f16m2(o, vout, vl);
-
-                o += vl;
-                c -= vl;
-            } while (c != 0);
-        }
-
-        for (ptrdiff_t k = (ptrdiff_t) kernel_elements - 9; k > 0; k -= 8) {
-            const __fp16* i0 = *input++;
-            const __fp16* i1 = *input++;
-            const __fp16* i2 = *input++;
-            const __fp16* i3 = *input++;
-            const __fp16* i4 = *input++;
-            const __fp16* i5 = *input++;
-            const __fp16* i6 = *input++;
-            const __fp16* i7 = *input++;
-            i0 = (const __fp16*) ((uintptr_t) i0 + input_offset);
-            i1 = (const __fp16*) ((uintptr_t) i1 + input_offset);
-            i2 = (const __fp16*) ((uintptr_t) i2 + input_offset);
-            i3 = (const __fp16*) ((uintptr_t) i3 + input_offset);
-            i4 = (const __fp16*) ((uintptr_t) i4 + input_offset);
-            i5 = (const __fp16*) ((uintptr_t) i5 + input_offset);
-            i6 = (const __fp16*) ((uintptr_t) i6 + input_offset);
-            i7 = (const __fp16*) ((uintptr_t) i7 + input_offset);
-            if (k < 2) {
-                i1 = i0;
-            }
-            if (k <= 2) {
-                i2 = i0;
-            }
-            if (k < 4) {
-                i3 = i0;
-            }
-            if (k <= 4) {
-                i4 = i0;
-            }
-            if (k < 6) {
-                i5 = i0;
-            }
-            if (k <= 6) {
-                i6 = i0;
-            }
-            if (k < 8) {
-                i7 = i0;
-            }
-
-            o = output;
-            size_t c = channels;
-            do {
-                size_t vl = __riscv_vsetvl_e16m2(c);
-                vfloat16m2_t vi0 = __riscv_vle16_v_f16m2(i0, vl); i0 += vl;
-                vfloat16m2_t vi1 = __riscv_vle16_v_f16m2(i1, vl); i1 += vl;
-                vfloat16m2_t vi2 = __riscv_vle16_v_f16m2(i2, vl); i2 += vl;
-                vfloat16m2_t vi3 = __riscv_vle16_v_f16m2(i3, vl); i3 += vl;
-                vfloat16m2_t vi4 = __riscv_vle16_v_f16m2(i4, vl); i4 += vl;
-                vfloat16m2_t vi5 = __riscv_vle16_v_f16m2(i5, vl); i5 += vl;
-                vfloat16m2_t vi6 = __riscv_vle16_v_f16m2(i6, vl); i6 += vl;
-                vfloat16m2_t vi7 = __riscv_vle16_v_f16m2(i7, vl); i7 += vl;
-                vfloat16m2_t vi8 = __riscv_vle16_v_f16m2(o, vl);
-
-                vfloat16m2_t vmax01 = __riscv_vfmax_vv_f16m2(vi0, vi1, vl);
-                vfloat16m2_t vmax23 = __riscv_vfmax_vv_f16m2(vi2, vi3, vl);
-                vfloat16m2_t vmax45 = __riscv_vfmax_vv_f16m2(vi4, vi5, vl);
-                vfloat16m2_t vmax67 = __riscv_vfmax_vv_f16m2(vi6, vi7, vl);
-                vfloat16m2_t vmax018 = __riscv_vfmax_vv_f16m2(vmax01, vi8, vl);
-
-                vfloat16m2_t vmax2345 = __riscv_vfmax_vv_f16m2(vmax23, vmax45, vl);
-                vfloat16m2_t vmax01678 = __riscv_vfmax_vv_f16m2(vmax018, vmax67, vl);
-                vfloat16m2_t vout = __riscv_vfmax_vv_f16m2(vmax2345, vmax01678, vl);
-                vout = __riscv_vfmax_vf_f16m2(vout, voutput_min, vl);
-                vout = __riscv_vfmin_vf_f16m2(vout, voutput_max, vl);
-
-                __riscv_vse16_v_f16m2(o, vout, vl);
-
-                o += vl;
-                c -= vl;
-            } while (c != 0);
-        }
-        input = (const void**) ((uintptr_t) input + input_increment);
-        output = (__fp16*) ((uintptr_t) o + output_increment);
-    } while (--output_pixels != 0);
-}
+// void xnn_f16_gemm_ukernel_1x16__rvv_u2v(
+//         size_t mr,
+//         size_t nc,
+//         size_t kc,
+//         const void* restrict a,
+//         size_t a_stride,
+//         const void* restrict w,
+//         void* restrict c,
+//         size_t cm_stride,
+//         size_t cn_stride,
+//         const union xnn_f16_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+// {
+//     assert(mr != 0);
+//     assert(mr <= 1);
+//     assert(nc != 0);
+//     assert(kc != 0);
+//     assert(kc % sizeof(__fp16) == 0);
+//     assert(a != NULL);
+//     assert(w != NULL);
+//     assert(c != NULL);
+
+//     const __fp16* a0 = a;
+//     __fp16* c0 = c;
+//     __fp16* hw = (__fp16*)w;
+
+//     size_t kcl = kc / sizeof(__fp16);
+
+//     do {
+//         size_t vl = __riscv_vsetvl_e16m2(nc);
+//         vfloat16m2_t vacc = __riscv_vle16_v_f16m2(hw, 16);
+//         hw += 16;
+//         for(size_t k = 0; k < kcl ; k++){
+//             vfloat16m2_t vw = __riscv_vle16_v_f16m2(hw, 16);
+//             hw += 16;
+//             vacc = __riscv_vfmacc_vf_f16m2(vacc, *a0, vw, 16);
+//             a0++;
+//         }
+//         __riscv_vse16_v_f16m2(c0, vacc, vl);
+//         if(nc >= 16){
+//             c0 = (__fp16*) ((uintptr_t) c0 + cn_stride);
+//             a0 = (const void*) ((uintptr_t) a0 - kc);
+//         }
+//         nc -= vl;
+//     } while (nc != 0);
+// }
+
+// void xnn_f16_gemm_ukernel_4x16__rvv_u2v(
+//         size_t mr,
+//         size_t nc,
+//         size_t kc,
+//         const void* restrict a,
+//         size_t a_stride,
+//         const void* restrict w,
+//         void* restrict c,
+//         size_t cm_stride,
+//         size_t cn_stride,
+//         const union xnn_f16_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+// {
+//     assert(mr != 0);
+//     assert(mr <= 4); // max process 1 row
+//     assert(nc != 0);
+//     assert(kc != 0);
+//     assert(kc % sizeof(__fp16) == 0);
+//     assert(a != NULL);
+//     assert(w != NULL);
+//     assert(c != NULL);
+
+//     const __fp16* a0 = (__fp16*)a;
+//     __fp16* c0 = c;
+//     const __fp16* a1 = (const __fp16*) ((uintptr_t) a0 + a_stride);
+//     __fp16* c1 = (__fp16*) ((uintptr_t) c0 + cm_stride);
+//     if XNN_UNPREDICTABLE(mr < 2) {
+//         a1 = a0;
+//         c1 = c0;
+//     }
+//     const __fp16* a2 = (const __fp16*) ((uintptr_t) a1 + a_stride);
+//     __fp16* c2 = (__fp16*) ((uintptr_t) c1 + cm_stride);
+//     if XNN_UNPREDICTABLE(mr <= 2) {
+//         a2 = a1;
+//         c2 = c1;
+//     }
+//     const __fp16* a3 = (const __fp16*) ((uintptr_t) a2 + a_stride);
+//     __fp16* c3 = (__fp16*) ((uintptr_t) c2 + cm_stride);
+//     if XNN_UNPREDICTABLE(mr != 4) {
+//         a3 = a2;
+//         c3 = c2;
+//     }
+
+//     __fp16* hw = (__fp16*)w;
+
+
+//     size_t kcl = kc / sizeof(__fp16);
+
+//     do {
+//         size_t vl = __riscv_vsetvl_e16m2(nc); // vector length
+//         vfloat16m2_t vacc0 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
+//         vfloat16m2_t vacc1 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
+//         vfloat16m2_t vacc2 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
+//         vfloat16m2_t vacc3 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
+//         hw += 16;
+//         for(size_t k = 0; k < kcl ; k++){
+//             vfloat16m2_t vw = __riscv_vle16_v_f16m2(hw, 16);
+//             hw += 16;
+//             vacc0 = __riscv_vfmacc_vf_f16m2(vacc0, *a0, vw, 16); // update 1st row count
+//             vacc1 = __riscv_vfmacc_vf_f16m2(vacc1, *a1, vw, 16); // update 1st row count
+//             vacc2 = __riscv_vfmacc_vf_f16m2(vacc2, *a2, vw, 16); // update 1st row count
+//             vacc3 = __riscv_vfmacc_vf_f16m2(vacc3, *a3, vw, 16); // update 1st row count
+//             a0++;
+//             a1++;
+//             a2++;
+//             a3++;
+//         }
+//         __riscv_vse16_v_f16m2(c0, vacc0, vl); // store 1st row result
+//         __riscv_vse16_v_f16m2(c1, vacc1, vl); // store 1st row result
+//         __riscv_vse16_v_f16m2(c2, vacc2, vl); // store 1st row result
+//         __riscv_vse16_v_f16m2(c3, vacc3, vl); // store 1st row result
+//         if(nc >= 16){
+//             c0 = (__fp16*) ((uintptr_t) c0 + cn_stride); // update 1st row matrix C pointer
+//             c1 = (__fp16*) ((uintptr_t) c1 + cn_stride); // update 1st row matrix C pointer
+//             c2 = (__fp16*) ((uintptr_t) c2 + cn_stride); // update 1st row matrix C pointer
+//             c3 = (__fp16*) ((uintptr_t) c3 + cn_stride); // update 1st row matrix C pointer
+//             a0 = (const void*) ((uintptr_t) a0 - kc); // update 1st row matrix A pointer
+//             a1 = (const void*) ((uintptr_t) a1 - kc); // update 1st row matrix A pointer
+//             a2 = (const void*) ((uintptr_t) a2 - kc); // update 1st row matrix A pointer
+//             a3 = (const void*) ((uintptr_t) a3 - kc); // update 1st row matrix A pointer
+//         }
+//         nc -= vl;
+//     } while (nc != 0);
+// }
+
+// void xnn_f16_igemm_ukernel_1x16__rvv_u2v(
+//         size_t mr,
+//         size_t nc,
+//         size_t kc,
+//         size_t ks,
+//         const void** restrict a,
+//         const void* restrict w,
+//         void* restrict c,
+//         size_t cm_stride,
+//         size_t cn_stride,
+//         size_t a_offset,
+//         const void* zero,
+//         const union xnn_f16_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+// {
+//     assert(mr != 0);
+//     assert(mr <= 1);
+//     assert(nc != 0);
+//     assert(kc != 0);
+//     assert(kc % sizeof(float) == 0);
+//     assert(ks != 0);
+//     assert(ks % (1 * sizeof(void*)) == 0);
+//     assert(a_offset % sizeof(float) == 0);
+//     assert(a != NULL);
+//     assert(w != NULL);
+//     assert(c != NULL);
+
+//     __fp16* c0 = c;
+
+//     __fp16* hw = (__fp16*)w;
+
+//     do {
+//         size_t vl = __riscv_vsetvl_e16m2(nc); // vector length
+//         vfloat16m2_t vacc0 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
+//         hw += 16;
+
+//         size_t p = ks;
+//         size_t kcl = kc / sizeof(float);
+//         do {
+//             const float* restrict a0 = a[0];
+//             assert(a0 != NULL);
+//             if XNN_UNPREDICTABLE(a0 != zero) {
+//                 a0 = (const float*) ((uintptr_t) a0 + a_offset);
+//             }
+//             a += 1;
+
+//             size_t k = kc;
+//             for(size_t k = 0; k < kcl ; k++){
+//                 vfloat16m2_t vw = __riscv_vle16_v_f16m2(hw, 16);
+//                 hw += 16;
+//                 vacc0 = __riscv_vfmacc_vf_f16m2(vacc0, *a0, vw, 16); // update 1st row count
+//                 a0++;
+//             }
+//             p -= 1 * sizeof(void*);
+//         } while (p != 0);
+//         __riscv_vse16_v_f16m2(c0, vacc0, vl); // store 1st row result
+
+//         if XNN_LIKELY(nc >= 16) {
+//             c0 = (__fp16*) ((uintptr_t) c0 + cn_stride);
+//             a = (const void**restrict) ((uintptr_t) a - ks);
+//         }
+//         nc -= vl;
+//     } while (nc != 0);
+// }
+
+// void xnn_f16_igemm_ukernel_4x16__rvv_u2v(
+//         size_t mr,
+//         size_t nc,
+//         size_t kc,
+//         size_t ks,
+//         const void** restrict a,
+//         const void* restrict w,
+//         void* restrict c,
+//         size_t cm_stride,
+//         size_t cn_stride,
+//         size_t a_offset,const void* zero,//todo
+//         const union xnn_f16_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+// {
+//     assert(mr != 0);
+//     assert(mr <= 4);
+//     assert(nc != 0);
+//     assert(kc != 0);
+//     assert(kc % sizeof(__fp16) == 0);
+//     assert(ks != 0);
+//     assert(ks % (4 * sizeof(void*)) == 0);
+//     assert(a_offset % sizeof(__fp16) == 0);
+//     assert(a != NULL);
+//     assert(w != NULL);
+//     assert(c != NULL);
+
+//     __fp16* c0 = c;
+//     __fp16* c1 = (__fp16*) ((uintptr_t) c0 + cm_stride);
+//     if XNN_UNPREDICTABLE(mr < 2) {
+//         c1 = c0;
+//     }
+//     __fp16* c2 = (__fp16*) ((uintptr_t) c1 + cm_stride);
+//     if XNN_UNPREDICTABLE(mr <= 2) {
+//         c2 = c1;
+//     }
+//     __fp16* c3 = (__fp16*) ((uintptr_t) c2 + cm_stride);
+//     if XNN_UNPREDICTABLE(mr != 4) {
+//         c3 = c2;
+//     }
+
+//     __fp16* hw = (__fp16*)w;
+
+//     do {
+//         size_t vl = __riscv_vsetvl_e16m2(nc); // vector length
+//         vfloat16m2_t vacc0 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
+//         vfloat16m2_t vacc1 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
+//         vfloat16m2_t vacc2 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
+//         vfloat16m2_t vacc3 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
+//         hw += 16;
+
+//         size_t p = ks;
+//         size_t kcl = kc / sizeof(__fp16);
+//         do {
+//             const __fp16* restrict a0 = a[0];
+//             assert(a0 != NULL);
+//             if XNN_UNPREDICTABLE(a0 != zero) {
+//                 a0 = (const __fp16*) ((uintptr_t) a0 + a_offset);
+//             }
+//             const __fp16* restrict a1 = a[1];
+//             assert(a1 != NULL);
+//             if XNN_UNPREDICTABLE(a1 != zero) {
+//                 a1 = (const __fp16*) ((uintptr_t) a1 + a_offset);
+//             }
+//             const __fp16* restrict a2 = a[2];
+//             assert(a2 != NULL);
+//             if XNN_UNPREDICTABLE(a2 != zero) {
+//                 a2 = (const __fp16*) ((uintptr_t) a2 + a_offset);
+//             }
+//             const __fp16* restrict a3 = a[3];
+//             assert(a3 != NULL);
+//             if XNN_UNPREDICTABLE(a3 != zero) {
+//                 a3 = (const __fp16*) ((uintptr_t) a3 + a_offset);
+//             }
+//             a += 4;
+
+//             size_t k = kc;
+//             for(size_t k = 0; k < kcl ; k++){
+//                 vfloat16m2_t vw = __riscv_vle16_v_f16m2(hw, 16);
+//                 hw += 16;
+//                 vacc0 = __riscv_vfmacc_vf_f16m2(vacc0, *a0, vw, 16); // update 1st row count
+//                 vacc1 = __riscv_vfmacc_vf_f16m2(vacc1, *a1, vw, 16); // update 1st row count
+//                 vacc2 = __riscv_vfmacc_vf_f16m2(vacc2, *a2, vw, 16); // update 1st row count
+//                 vacc3 = __riscv_vfmacc_vf_f16m2(vacc3, *a3, vw, 16); // update 1st row count
+//                 a0++;
+//                 a1++;
+//                 a2++;
+//                 a3++;
+//             }
+//             p -= 4 * sizeof(void*);//todo
+//         } while (p != 0);
+//         __riscv_vse16_v_f16m2(c0, vacc0, vl); // store 1st row result
+//         __riscv_vse16_v_f16m2(c1, vacc1, vl); // store 1st row result
+//         __riscv_vse16_v_f16m2(c2, vacc2, vl); // store 1st row result
+//         __riscv_vse16_v_f16m2(c3, vacc3, vl); // store 1st row result
+
+//         if XNN_LIKELY(nc >= 16) {
+//             c3 = (__fp16*) ((uintptr_t) c3 + cn_stride);
+//             c2 = (__fp16*) ((uintptr_t) c2 + cn_stride);
+//             c1 = (__fp16*) ((uintptr_t) c1 + cn_stride);
+//             c0 = (__fp16*) ((uintptr_t) c0 + cn_stride);
+
+//             a = (const void**restrict) ((uintptr_t) a - ks);
+//         }
+//         nc -= vl;
+//     } while (nc != 0);
+// }
+
+// void xnn_f16_gemm_minmax_ukernel_1x16__rvv_u2v(
+//         size_t mr,
+//         size_t nc,
+//         size_t kc,
+//         const void* restrict a,
+//         size_t a_stride,
+//         const void* restrict w,
+//         void* restrict c,
+//         size_t cm_stride,
+//         size_t cn_stride,
+//         const union xnn_f16_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+// {
+//     assert(mr != 0);
+//     assert(mr <= 1);
+//     assert(nc != 0);
+//     assert(kc != 0);
+//     assert(kc % sizeof(__fp16) == 0);
+//     assert(a != NULL);
+//     assert(w != NULL);
+//     assert(c != NULL);
+
+//     const __fp16* a0 = a;
+//     __fp16* c0 = c;
+//     size_t kcl = kc / sizeof(__fp16);
+
+//     __fp16 vmin, vmax;
+//     memcpy(&vmin, &params->fp16arith.min, sizeof(vmin));
+//     memcpy(&vmax, &params->fp16arith.max, sizeof(vmax));
+
+//     __fp16* hw = (__fp16*)w;
+
+//     do {
+//         size_t vl = __riscv_vsetvl_e16m2(nc);
+//         vfloat16m2_t vacc = __riscv_vle16_v_f16m2(hw, 16);
+//         hw += 16;
+//         for(size_t k = 0; k < kcl ; k++){
+//             vfloat16m2_t vw = __riscv_vle16_v_f16m2(hw, 16);
+//             hw += 16;
+//             vacc = __riscv_vfmacc_vf_f16m2(vacc, *a0, vw, 16);
+//             a0++;
+//         }
+//         vacc = __riscv_vfmax_vf_f16m2(vacc, vmin, vl);
+//         vacc = __riscv_vfmin_vf_f16m2(vacc, vmax, vl);
+//         __riscv_vse16_v_f16m2(c0, vacc, vl);
+//         if(nc >= 16){
+//             c0 = (__fp16*) ((uintptr_t) c0 + cn_stride);
+//             a0 = (const void*) ((uintptr_t) a0 - kc);
+//         }
+//         nc -= vl;
+//     } while (nc != 0);
+// }
+
+// void xnn_f16_gemm_minmax_ukernel_4x16__rvv_u2v(
+//         size_t mr,
+//         size_t nc,
+//         size_t kc,
+//         const void* restrict a,
+//         size_t a_stride,
+//         const void* restrict w,
+//         void* restrict c,
+//         size_t cm_stride,
+//         size_t cn_stride,
+//         const union xnn_f16_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+// {
+//     assert(mr != 0);
+//     assert(mr <= 4); // max process 1 row
+//     assert(nc != 0);
+//     assert(kc != 0);
+//     assert(kc % sizeof(__fp16) == 0);
+//     assert(a != NULL);
+//     assert(w != NULL);
+//     assert(c != NULL);
+
+//     const __fp16* a0 = a;
+//     __fp16* c0 = c;
+//     const __fp16* a1 = (const __fp16*) ((uintptr_t) a0 + a_stride);
+//     __fp16* c1 = (__fp16*) ((uintptr_t) c0 + cm_stride);
+//     if XNN_UNPREDICTABLE(mr < 2) {
+//         a1 = a0;
+//         c1 = c0;
+//     }
+//     const __fp16* a2 = (const __fp16*) ((uintptr_t) a1 + a_stride);
+//     __fp16* c2 = (__fp16*) ((uintptr_t) c1 + cm_stride);
+//     if XNN_UNPREDICTABLE(mr <= 2) {
+//         a2 = a1;
+//         c2 = c1;
+//     }
+//     const __fp16* a3 = (const __fp16*) ((uintptr_t) a2 + a_stride);
+//     __fp16* c3 = (__fp16*) ((uintptr_t) c2 + cm_stride);
+//     if XNN_UNPREDICTABLE(mr != 4) {
+//         a3 = a2;
+//         c3 = c2;
+//     }
+
+//     __fp16 vmin, vmax;
+//     memcpy(&vmin, &params->fp16arith.min, sizeof(vmin));
+//     memcpy(&vmax, &params->fp16arith.max, sizeof(vmax));
+
+//     __fp16* hw = (__fp16*)w;
+
+//     size_t kcl = kc / sizeof(__fp16);
+
+//     do {
+//         size_t vl = __riscv_vsetvl_e16m2(nc); // vector length
+//         vfloat16m2_t vacc0 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
+//         vfloat16m2_t vacc1 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
+//         vfloat16m2_t vacc2 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
+//         vfloat16m2_t vacc3 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
+//         hw += 16;
+//         for(size_t k = 0; k < kcl ; k++){
+//             vfloat16m2_t vw = __riscv_vle16_v_f16m2(hw, 16);
+//             hw += 16;
+//             vacc0 = __riscv_vfmacc_vf_f16m2(vacc0, *a0, vw, 16); // update 1st row count
+//             vacc1 = __riscv_vfmacc_vf_f16m2(vacc1, *a1, vw, 16); // update 1st row count
+//             vacc2 = __riscv_vfmacc_vf_f16m2(vacc2, *a2, vw, 16); // update 1st row count
+//             vacc3 = __riscv_vfmacc_vf_f16m2(vacc3, *a3, vw, 16); // update 1st row count
+//             a0++;
+//             a1++;
+//             a2++;
+//             a3++;
+//         }
+//         vacc0 = __riscv_vfmax_vf_f16m2(vacc0, vmin, vl);
+//         vacc1 = __riscv_vfmax_vf_f16m2(vacc1, vmin, vl);
+//         vacc2 = __riscv_vfmax_vf_f16m2(vacc2, vmin, vl);
+//         vacc3 = __riscv_vfmax_vf_f16m2(vacc3, vmin, vl);
+
+//         vacc0 = __riscv_vfmin_vf_f16m2(vacc0, vmax, vl);
+//         vacc1 = __riscv_vfmin_vf_f16m2(vacc1, vmax, vl);
+//         vacc2 = __riscv_vfmin_vf_f16m2(vacc2, vmax, vl);
+//         vacc3 = __riscv_vfmin_vf_f16m2(vacc3, vmax, vl);
+
+//         __riscv_vse16_v_f16m2(c0, vacc0, vl); // store 1st row result
+//         __riscv_vse16_v_f16m2(c1, vacc1, vl); // store 1st row result
+//         __riscv_vse16_v_f16m2(c2, vacc2, vl); // store 1st row result
+//         __riscv_vse16_v_f16m2(c3, vacc3, vl); // store 1st row result
+//         if(nc >= 16){
+//             c0 = (__fp16*) ((uintptr_t) c0 + cn_stride); // update 1st row matrix C pointer
+//             c1 = (__fp16*) ((uintptr_t) c1 + cn_stride); // update 1st row matrix C pointer
+//             c2 = (__fp16*) ((uintptr_t) c2 + cn_stride); // update 1st row matrix C pointer
+//             c3 = (__fp16*) ((uintptr_t) c3 + cn_stride); // update 1st row matrix C pointer
+//             a0 = (const void*) ((uintptr_t) a0 - kc); // update 1st row matrix A pointer
+//             a1 = (const void*) ((uintptr_t) a1 - kc); // update 1st row matrix A pointer
+//             a2 = (const void*) ((uintptr_t) a2 - kc); // update 1st row matrix A pointer
+//             a3 = (const void*) ((uintptr_t) a3 - kc); // update 1st row matrix A pointer
+//         }
+//         nc -= vl;
+//     } while (nc != 0);
+// }
+
+// void xnn_f16_igemm_minmax_ukernel_1x16__rvv_u2v(
+//         size_t mr,
+//         size_t nc,
+//         size_t kc,
+//         size_t ks,
+//         const void** restrict a,
+//         const void* restrict w,
+//         void* restrict c,
+//         size_t cm_stride,
+//         size_t cn_stride,
+//         size_t a_offset,
+//         const void* zero,
+//         const union xnn_f16_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+// {
+//     assert(mr != 0);
+//     assert(mr <= 1);
+//     assert(nc != 0);
+//     assert(kc != 0);
+//     assert(kc % sizeof(__fp16) == 0);
+//     assert(ks != 0);
+//     assert(ks % (1 * sizeof(void*)) == 0);
+//     assert(a_offset % sizeof(__fp16) == 0);
+//     assert(a != NULL);
+//     assert(w != NULL);
+//     assert(c != NULL);
+
+//     __fp16* c0 = c;
+
+//     __fp16 vmin, vmax;
+//     memcpy(&vmin, &params->fp16arith.min, sizeof(vmin));
+//     memcpy(&vmax, &params->fp16arith.max, sizeof(vmax));
+
+//     __fp16* hw = (__fp16*)w;
+
+
+//     do {
+//         size_t vl = __riscv_vsetvl_e16m2(nc); // vector length
+//         vfloat16m2_t vacc0 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
+//         hw += 16;
+
+//         size_t p = ks;
+//         size_t kcl = kc / sizeof(__fp16);
+//         do {
+//             const __fp16* restrict a0 = a[0];
+//             assert(a0 != NULL);
+//             if XNN_UNPREDICTABLE(a0 != zero) {
+//                 a0 = (const __fp16*) ((uintptr_t) a0 + a_offset);
+//             }
+//             a += 1;
+
+//             size_t k = kc;
+//             for(size_t k = 0; k < kcl ; k++){
+//                 vfloat16m2_t vw = __riscv_vle16_v_f16m2(hw, 16);
+//                 hw += 16;
+//                 vacc0 = __riscv_vfmacc_vf_f16m2(vacc0, *a0, vw, 16); // update 1st row count
+//                 a0++;
+//             }
+//             p -= 1 * sizeof(void*);
+//         } while (p != 0);
+//         vacc0 = __riscv_vfmax_vf_f16m2(vacc0, vmin, vl);
+//         vacc0 = __riscv_vfmin_vf_f16m2(vacc0, vmax, vl);
+//         __riscv_vse16_v_f16m2(c0, vacc0, vl); // store 1st row result
+
+//         if XNN_LIKELY(nc >= 16) {
+//             c0 = (__fp16*) ((uintptr_t) c0 + cn_stride);
+//             a = (const void**restrict) ((uintptr_t) a - ks);
+//         }
+//         nc -= vl;
+//     } while (nc != 0);
+// }
+
+// void xnn_f16_igemm_minmax_ukernel_4x16__rvv_u2v(
+//         size_t mr,
+//         size_t nc,
+//         size_t kc,
+//         size_t ks,
+//         const void** restrict a,
+//         const void* restrict w,
+//         void* restrict c,
+//         size_t cm_stride,
+//         size_t cn_stride,
+//         size_t a_offset,const void* zero,//todo
+//         const union xnn_f16_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+// {
+//     assert(mr != 0);
+//     assert(mr <= 4);
+//     assert(nc != 0);
+//     assert(kc != 0);
+//     assert(kc % sizeof(__fp16) == 0);
+//     assert(ks != 0);
+//     assert(ks % (4 * sizeof(void*)) == 0);
+//     assert(a_offset % sizeof(__fp16) == 0);
+//     assert(a != NULL);
+//     assert(w != NULL);
+//     assert(c != NULL);
+
+//     __fp16* c0 = c;
+//     __fp16* c1 = (__fp16*) ((uintptr_t) c0 + cm_stride);
+//     if XNN_UNPREDICTABLE(mr < 2) {
+//         c1 = c0;
+//     }
+//     __fp16* c2 = (__fp16*) ((uintptr_t) c1 + cm_stride);
+//     if XNN_UNPREDICTABLE(mr <= 2) {
+//         c2 = c1;
+//     }
+//     __fp16* c3 = (__fp16*) ((uintptr_t) c2 + cm_stride);
+//     if XNN_UNPREDICTABLE(mr != 4) {
+//         c3 = c2;
+//     }
+
+//     __fp16 vmin, vmax;
+//     memcpy(&vmin, &params->fp16arith.min, sizeof(vmin));
+//     memcpy(&vmax, &params->fp16arith.max, sizeof(vmax));
+
+//     __fp16* hw = (__fp16*)w;
+
+
+//     do {
+//         size_t vl = __riscv_vsetvl_e16m2(nc); // vector length
+//         vfloat16m2_t vacc0 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
+//         vfloat16m2_t vacc1 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
+//         vfloat16m2_t vacc2 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
+//         vfloat16m2_t vacc3 = __riscv_vle16_v_f16m2(hw, 16); // 1st row count
+
+//         hw += 16;
+
+//         size_t p = ks;
+//         size_t kcl = kc / sizeof(__fp16);
+//         do {
+//             const __fp16* restrict a0 = a[0];
+//             assert(a0 != NULL);
+//             if XNN_UNPREDICTABLE(a0 != zero) {
+//                 a0 = (const __fp16*) ((uintptr_t) a0 + a_offset);
+//             }
+//             const __fp16* restrict a1 = a[1];
+//             assert(a1 != NULL);
+//             if XNN_UNPREDICTABLE(a1 != zero) {
+//                 a1 = (const __fp16*) ((uintptr_t) a1 + a_offset);
+//             }
+//             const __fp16* restrict a2 = a[2];
+//             assert(a2 != NULL);
+//             if XNN_UNPREDICTABLE(a2 != zero) {
+//                 a2 = (const __fp16*) ((uintptr_t) a2 + a_offset);
+//             }
+//             const __fp16* restrict a3 = a[3];
+//             assert(a3 != NULL);
+//             if XNN_UNPREDICTABLE(a3 != zero) {
+//                 a3 = (const __fp16*) ((uintptr_t) a3 + a_offset);
+//             }
+//             a += 4;
+
+//             size_t k = kc;
+//             for(size_t k = 0; k < kcl ; k++){
+//                 vfloat16m2_t vw = __riscv_vle16_v_f16m2(hw, 16);
+//                 hw += 16;
+//                 vacc0 = __riscv_vfmacc_vf_f16m2(vacc0, *a0, vw, 16); // update 1st row count
+//                 vacc1 = __riscv_vfmacc_vf_f16m2(vacc1, *a1, vw, 16); // update 1st row count
+//                 vacc2 = __riscv_vfmacc_vf_f16m2(vacc2, *a2, vw, 16); // update 1st row count
+//                 vacc3 = __riscv_vfmacc_vf_f16m2(vacc3, *a3, vw, 16); // update 1st row count
+//                 a0++;
+//                 a1++;
+//                 a2++;
+//                 a3++;
+//             }
+//             p -= 4 * sizeof(void*);//todo
+//         } while (p != 0);
+
+//         vacc0 = __riscv_vfmax_vf_f16m2(vacc0, vmin, vl);
+//         vacc1 = __riscv_vfmax_vf_f16m2(vacc1, vmin, vl);
+//         vacc2 = __riscv_vfmax_vf_f16m2(vacc2, vmin, vl);
+//         vacc3 = __riscv_vfmax_vf_f16m2(vacc3, vmin, vl);
+
+//         vacc0 = __riscv_vfmin_vf_f16m2(vacc0, vmax, vl);
+//         vacc1 = __riscv_vfmin_vf_f16m2(vacc1, vmax, vl);
+//         vacc2 = __riscv_vfmin_vf_f16m2(vacc2, vmax, vl);
+//         vacc3 = __riscv_vfmin_vf_f16m2(vacc3, vmax, vl);
+
+//         __riscv_vse16_v_f16m2(c0, vacc0, vl); // store 1st row result
+//         __riscv_vse16_v_f16m2(c1, vacc1, vl); // store 1st row result
+//         __riscv_vse16_v_f16m2(c2, vacc2, vl); // store 1st row result
+//         __riscv_vse16_v_f16m2(c3, vacc3, vl); // store 1st row result
+
+//         if XNN_LIKELY(nc >= 16) {
+//             c3 = (__fp16*) ((uintptr_t) c3 + cn_stride);
+//             c2 = (__fp16*) ((uintptr_t) c2 + cn_stride);
+//             c1 = (__fp16*) ((uintptr_t) c1 + cn_stride);
+//             c0 = (__fp16*) ((uintptr_t) c0 + cn_stride);
+
+//             a = (const void**restrict) ((uintptr_t) a - ks);
+//         }
+//         nc -= vl;
+//     } while (nc != 0);
+// }
+
+// void xnn_f16_maxpool_minmax_ukernel_9p8x__rvv_u2v(
+//         size_t output_pixels,
+//         size_t kernel_elements,
+//         size_t channels,
+//         const void** input,
+//         size_t input_offset,
+//         void* output,
+//         size_t input_increment,
+//         size_t output_increment,
+//         const union xnn_f16_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+// {
+//     assert(output_pixels != 0);
+//     assert(kernel_elements != 0);
+//     assert(channels != 0);
+
+//     __fp16 voutput_min, voutput_max;
+//     memcpy(&voutput_min, &params->fp16arith.min, sizeof(voutput_min));
+//     memcpy(&voutput_max, &params->fp16arith.max, sizeof(voutput_max));
+
+//     do {
+//         __fp16* o = output;
+//         {
+//             const __fp16* i0 = *input++;
+//             const __fp16* i1 = *input++;
+//             const __fp16* i2 = *input++;
+//             const __fp16* i3 = *input++;
+//             const __fp16* i4 = *input++;
+//             const __fp16* i5 = *input++;
+//             const __fp16* i6 = *input++;
+//             const __fp16* i7 = *input++;
+//             const __fp16* i8 = *input++;
+//             i0 = (const __fp16*) ((uintptr_t) i0 + input_offset);
+//             i1 = (const __fp16*) ((uintptr_t) i1 + input_offset);
+//             i2 = (const __fp16*) ((uintptr_t) i2 + input_offset);
+//             i3 = (const __fp16*) ((uintptr_t) i3 + input_offset);
+//             i4 = (const __fp16*) ((uintptr_t) i4 + input_offset);
+//             i5 = (const __fp16*) ((uintptr_t) i5 + input_offset);
+//             i6 = (const __fp16*) ((uintptr_t) i6 + input_offset);
+//             i7 = (const __fp16*) ((uintptr_t) i7 + input_offset);
+//             i8 = (const __fp16*) ((uintptr_t) i8 + input_offset);
+//             if (kernel_elements < 2) {
+//                 i1 = i0;
+//             }
+//             if (kernel_elements <= 2) {
+//                 i2 = i0;
+//             }
+//             if (kernel_elements < 4) {
+//                 i3 = i0;
+//             }
+//             if (kernel_elements <= 4) {
+//                 i4 = i0;
+//             }
+//             if (kernel_elements < 6) {
+//                 i5 = i0;
+//             }
+//             if (kernel_elements <= 6) {
+//                 i6 = i0;
+//             }
+//             if (kernel_elements < 8) {
+//                 i7 = i0;
+//             }
+//             if (kernel_elements <= 8) {
+//                 i8 = i0;
+//             }
+
+//             size_t c = channels;
+//             do {
+//                 size_t vl = __riscv_vsetvl_e16m2(c);
+//                 vfloat16m2_t vi0 = __riscv_vle16_v_f16m2(i0, vl); i0 += vl;
+//                 vfloat16m2_t vi1 = __riscv_vle16_v_f16m2(i1, vl); i1 += vl;
+//                 vfloat16m2_t vi2 = __riscv_vle16_v_f16m2(i2, vl); i2 += vl;
+//                 vfloat16m2_t vi3 = __riscv_vle16_v_f16m2(i3, vl); i3 += vl;
+//                 vfloat16m2_t vi4 = __riscv_vle16_v_f16m2(i4, vl); i4 += vl;
+//                 vfloat16m2_t vi5 = __riscv_vle16_v_f16m2(i5, vl); i5 += vl;
+//                 vfloat16m2_t vi6 = __riscv_vle16_v_f16m2(i6, vl); i6 += vl;
+//                 vfloat16m2_t vi7 = __riscv_vle16_v_f16m2(i7, vl); i7 += vl;
+//                 vfloat16m2_t vi8 = __riscv_vle16_v_f16m2(i8, vl); i8 += vl;
+
+//                 vfloat16m2_t vmax01 = __riscv_vfmax_vv_f16m2(vi0, vi1, vl);
+//                 vfloat16m2_t vmax23 = __riscv_vfmax_vv_f16m2(vi2, vi3, vl);
+//                 vfloat16m2_t vmax45 = __riscv_vfmax_vv_f16m2(vi4, vi5, vl);
+//                 vfloat16m2_t vmax67 = __riscv_vfmax_vv_f16m2(vi6, vi7, vl);
+//                 vfloat16m2_t vmax018 = __riscv_vfmax_vv_f16m2(vmax01, vi8, vl);
+
+//                 vfloat16m2_t vmax2345 = __riscv_vfmax_vv_f16m2(vmax23, vmax45, vl);
+//                 vfloat16m2_t vmax01678 = __riscv_vfmax_vv_f16m2(vmax018, vmax67, vl);
+//                 vfloat16m2_t vout = __riscv_vfmax_vv_f16m2(vmax2345, vmax01678, vl);
+//                 vout = __riscv_vfmax_vf_f16m2(vout, voutput_min, vl);
+//                 vout = __riscv_vfmin_vf_f16m2(vout, voutput_max, vl);
+
+//                 __riscv_vse16_v_f16m2(o, vout, vl);
+
+//                 o += vl;
+//                 c -= vl;
+//             } while (c != 0);
+//         }
+
+//         for (ptrdiff_t k = (ptrdiff_t) kernel_elements - 9; k > 0; k -= 8) {
+//             const __fp16* i0 = *input++;
+//             const __fp16* i1 = *input++;
+//             const __fp16* i2 = *input++;
+//             const __fp16* i3 = *input++;
+//             const __fp16* i4 = *input++;
+//             const __fp16* i5 = *input++;
+//             const __fp16* i6 = *input++;
+//             const __fp16* i7 = *input++;
+//             i0 = (const __fp16*) ((uintptr_t) i0 + input_offset);
+//             i1 = (const __fp16*) ((uintptr_t) i1 + input_offset);
+//             i2 = (const __fp16*) ((uintptr_t) i2 + input_offset);
+//             i3 = (const __fp16*) ((uintptr_t) i3 + input_offset);
+//             i4 = (const __fp16*) ((uintptr_t) i4 + input_offset);
+//             i5 = (const __fp16*) ((uintptr_t) i5 + input_offset);
+//             i6 = (const __fp16*) ((uintptr_t) i6 + input_offset);
+//             i7 = (const __fp16*) ((uintptr_t) i7 + input_offset);
+//             if (k < 2) {
+//                 i1 = i0;
+//             }
+//             if (k <= 2) {
+//                 i2 = i0;
+//             }
+//             if (k < 4) {
+//                 i3 = i0;
+//             }
+//             if (k <= 4) {
+//                 i4 = i0;
+//             }
+//             if (k < 6) {
+//                 i5 = i0;
+//             }
+//             if (k <= 6) {
+//                 i6 = i0;
+//             }
+//             if (k < 8) {
+//                 i7 = i0;
+//             }
+
+//             o = output;
+//             size_t c = channels;
+//             do {
+//                 size_t vl = __riscv_vsetvl_e16m2(c);
+//                 vfloat16m2_t vi0 = __riscv_vle16_v_f16m2(i0, vl); i0 += vl;
+//                 vfloat16m2_t vi1 = __riscv_vle16_v_f16m2(i1, vl); i1 += vl;
+//                 vfloat16m2_t vi2 = __riscv_vle16_v_f16m2(i2, vl); i2 += vl;
+//                 vfloat16m2_t vi3 = __riscv_vle16_v_f16m2(i3, vl); i3 += vl;
+//                 vfloat16m2_t vi4 = __riscv_vle16_v_f16m2(i4, vl); i4 += vl;
+//                 vfloat16m2_t vi5 = __riscv_vle16_v_f16m2(i5, vl); i5 += vl;
+//                 vfloat16m2_t vi6 = __riscv_vle16_v_f16m2(i6, vl); i6 += vl;
+//                 vfloat16m2_t vi7 = __riscv_vle16_v_f16m2(i7, vl); i7 += vl;
+//                 vfloat16m2_t vi8 = __riscv_vle16_v_f16m2(o, vl);
+
+//                 vfloat16m2_t vmax01 = __riscv_vfmax_vv_f16m2(vi0, vi1, vl);
+//                 vfloat16m2_t vmax23 = __riscv_vfmax_vv_f16m2(vi2, vi3, vl);
+//                 vfloat16m2_t vmax45 = __riscv_vfmax_vv_f16m2(vi4, vi5, vl);
+//                 vfloat16m2_t vmax67 = __riscv_vfmax_vv_f16m2(vi6, vi7, vl);
+//                 vfloat16m2_t vmax018 = __riscv_vfmax_vv_f16m2(vmax01, vi8, vl);
+
+//                 vfloat16m2_t vmax2345 = __riscv_vfmax_vv_f16m2(vmax23, vmax45, vl);
+//                 vfloat16m2_t vmax01678 = __riscv_vfmax_vv_f16m2(vmax018, vmax67, vl);
+//                 vfloat16m2_t vout = __riscv_vfmax_vv_f16m2(vmax2345, vmax01678, vl);
+//                 vout = __riscv_vfmax_vf_f16m2(vout, voutput_min, vl);
+//                 vout = __riscv_vfmin_vf_f16m2(vout, voutput_max, vl);
+
+//                 __riscv_vse16_v_f16m2(o, vout, vl);
+
+//                 o += vl;
+//                 c -= vl;
+//             } while (c != 0);
+//         }
+//         input = (const void**) ((uintptr_t) input + input_increment);
+//         output = (__fp16*) ((uintptr_t) o + output_increment);
+//     } while (--output_pixels != 0);
+// }
 
 // void xnn_f16_vsigmoid_ukernel__rvv_u2v(
 //         size_t batch,
@@ -3673,216 +3673,216 @@ void xnn_f16_maxpool_minmax_ukernel_9p8x__rvv_u2v(
 //     } while (size > 0);
 // }
 
-void xnn_f16_vsigmoid_ukernel__thead_u2v(
-        size_t batch,
-        const void* input,
-        void* output,
-        const union xnn_f16_sigmoid_params params[restrict XNN_MIN_ELEMENTS(1)])
-{
-    assert(batch != 0);
-    assert(batch % sizeof(__fp16) == 0);
-    assert(input != NULL);
-    assert(output != NULL);
+// void xnn_f16_vsigmoid_ukernel__thead_u2v(
+//         size_t batch,
+//         const void* input,
+//         void* output,
+//         const union xnn_f16_sigmoid_params params[restrict XNN_MIN_ELEMENTS(1)])
+// {
+//     assert(batch != 0);
+//     assert(batch % sizeof(__fp16) == 0);
+//     assert(input != NULL);
+//     assert(output != NULL);
 
-    __fp16 *input_data = (__fp16 *)input;
-    __fp16 *output_data = (__fp16 *)output;
+//     __fp16 *input_data = (__fp16 *)input;
+//     __fp16 *output_data = (__fp16 *)output;
 
-    size_t size = batch / sizeof(__fp16);
-    while (size > 0) {
-        size_t vl = __riscv_vsetvl_e16m2(size);
+//     size_t size = batch / sizeof(__fp16);
+//     while (size > 0) {
+//         size_t vl = __riscv_vsetvl_e16m2(size);
 
-        vfloat16m2_t _val = __riscv_vle16_v_f16m2(input_data, vl);  // val
-        _val = __riscv_vfmul_vf_f16m2(_val, -1.0f, vl);
-        vfloat16m2_t _output_data = exp_ps_vfloat16m2(_val, vl);
-        _output_data = __riscv_vfadd_vf_f16m2(_output_data, 1.0f, vl);
-        _output_data = __riscv_vfrdiv_vf_f16m2(_output_data, 1.0f, vl);
-        __riscv_vse16_v_f16m2(output_data, _output_data, vl);
+//         vfloat16m2_t _val = __riscv_vle16_v_f16m2(input_data, vl);  // val
+//         _val = __riscv_vfmul_vf_f16m2(_val, -1.0f, vl);
+//         vfloat16m2_t _output_data = exp_ps_vfloat16m2(_val, vl);
+//         _output_data = __riscv_vfadd_vf_f16m2(_output_data, 1.0f, vl);
+//         _output_data = __riscv_vfrdiv_vf_f16m2(_output_data, 1.0f, vl);
+//         __riscv_vse16_v_f16m2(output_data, _output_data, vl);
 
-        input_data += vl;
-        output_data += vl;
-        size -= vl;
-    }
-}
+//         input_data += vl;
+//         output_data += vl;
+//         size -= vl;
+//     }
+// }
 
-
-//向量加法
-void xnn_f16_vadd_minmax_ukernel__rvv_u2v(
-        size_t batch,
-        const void* input_a,
-        const void* input_b,
-        void* output,
-        const union xnn_f16_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
-{
-    assert(batch != 0);
-    assert(batch % sizeof(__fp16) == 0);
-    assert(input_a != NULL);
-    assert(input_b != NULL);
-    assert(output != NULL);
-
-    __fp16 voutput_min;
-    __fp16 voutput_max;
-    memcpy(&voutput_min, &params->fp16arith.min, sizeof(voutput_min));
-    memcpy(&voutput_max, &params->fp16arith.max, sizeof(voutput_max));
-
-    size_t size = batch / sizeof(__fp16);
-    do {
-    // 动态设置向量长度
-    const size_t vl = __riscv_vsetvl_e16m2(size);
-
-    // 加载输入向量
-    vfloat16m2_t va = __riscv_vle16_v_f16m2(input_a, vl);
-    vfloat16m2_t vb = __riscv_vle16_v_f16m2(input_b, vl);
-    input_a += vl;
-    input_b += vl;
-
-    // 执行向量加法
-    vfloat16m2_t vacc = __riscv_vfadd_vv_f16m2(va, vb, vl);
-
-    // 应用最小值约束
-    vacc = __riscv_vfmax_vf_f16m2(vacc, voutput_min, vl);
-
-    // 应用最大值约束
-    vacc = __riscv_vfmin_vf_f16m2(vacc, voutput_max, vl);
-
-    // 存储结果
-    __riscv_vse16_v_f16m2(output, vacc, vl);
-    output += vl;
-    size -= vl;
-    } while (size > 0);
-}
 
 //向量加法
-void xnn_f16_vaddc_minmax_ukernel__rvv_u2v(
-        size_t batch,
-        const void* input_a,
-        const void* input_b,
-        void* output,
-        const union xnn_f16_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
-{
-    assert(batch != 0);
-    assert(batch % sizeof(__fp16) == 0);
-    assert(input_a != NULL);
-    assert(input_b != NULL);
-    assert(output != NULL);
+// void xnn_f16_vadd_minmax_ukernel__rvv_u2v(
+//         size_t batch,
+//         const void* input_a,
+//         const void* input_b,
+//         void* output,
+//         const union xnn_f16_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+// {
+//     assert(batch != 0);
+//     assert(batch % sizeof(__fp16) == 0);
+//     assert(input_a != NULL);
+//     assert(input_b != NULL);
+//     assert(output != NULL);
 
-    __fp16 voutput_min;
-    __fp16 voutput_max;
-    memcpy(&voutput_min, &params->fp16arith.min, sizeof(voutput_min));
-    memcpy(&voutput_max, &params->fp16arith.max, sizeof(voutput_max));
-    const __fp16 vb = *(__fp16 *)input_b;
+//     __fp16 voutput_min;
+//     __fp16 voutput_max;
+//     memcpy(&voutput_min, &params->fp16arith.min, sizeof(voutput_min));
+//     memcpy(&voutput_max, &params->fp16arith.max, sizeof(voutput_max));
 
-    size_t size = batch / sizeof(__fp16);
-    do {
-        // 动态设置向量长度
-        const size_t vl = __riscv_vsetvl_e16m2(size);
+//     size_t size = batch / sizeof(__fp16);
+//     do {
+//     // 动态设置向量长度
+//     const size_t vl = __riscv_vsetvl_e16m2(size);
 
-        // 加载输入向量
-        vfloat16m2_t va = __riscv_vle16_v_f16m2(input_a, vl);
-        input_a += vl;
+//     // 加载输入向量
+//     vfloat16m2_t va = __riscv_vle16_v_f16m2(input_a, vl);
+//     vfloat16m2_t vb = __riscv_vle16_v_f16m2(input_b, vl);
+//     input_a += vl;
+//     input_b += vl;
 
-        // 执行向量加法
-        vfloat16m2_t vacc = __riscv_vfadd_vf_f16m2(va, vb, vl);
+//     // 执行向量加法
+//     vfloat16m2_t vacc = __riscv_vfadd_vv_f16m2(va, vb, vl);
 
-        // 应用最小值约束
-        vacc = __riscv_vfmax_vf_f16m2(vacc, voutput_min, vl);
+//     // 应用最小值约束
+//     vacc = __riscv_vfmax_vf_f16m2(vacc, voutput_min, vl);
 
-        // 应用最大值约束
-        vacc = __riscv_vfmin_vf_f16m2(vacc, voutput_max, vl);
+//     // 应用最大值约束
+//     vacc = __riscv_vfmin_vf_f16m2(vacc, voutput_max, vl);
 
-        // 存储结果
-        __riscv_vse16_v_f16m2(output, vacc, vl);
-        output += vl;
-        size -= vl;
-    } while (size > 0);
-}
+//     // 存储结果
+//     __riscv_vse16_v_f16m2(output, vacc, vl);
+//     output += vl;
+//     size -= vl;
+//     } while (size > 0);
+// }
 
-//向量乘法
-void xnn_f16_vmul_minmax_ukernel__rvv_u2v(
-        size_t batch,
-        const void* input_a,
-        const void* input_b,
-        void* output,
-        const union xnn_f16_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
-{
-    assert(batch != 0);
-    assert(batch % sizeof(__fp16) == 0);
-    assert(input_a != NULL);
-    assert(input_b != NULL);
-    assert(output != NULL);
+// //向量加法
+// void xnn_f16_vaddc_minmax_ukernel__rvv_u2v(
+//         size_t batch,
+//         const void* input_a,
+//         const void* input_b,
+//         void* output,
+//         const union xnn_f16_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+// {
+//     assert(batch != 0);
+//     assert(batch % sizeof(__fp16) == 0);
+//     assert(input_a != NULL);
+//     assert(input_b != NULL);
+//     assert(output != NULL);
 
-    __fp16 voutput_min;
-    __fp16 voutput_max;
-    memcpy(&voutput_min, &params->fp16arith.min, sizeof(voutput_min));
-    memcpy(&voutput_max, &params->fp16arith.max, sizeof(voutput_max));
+//     __fp16 voutput_min;
+//     __fp16 voutput_max;
+//     memcpy(&voutput_min, &params->fp16arith.min, sizeof(voutput_min));
+//     memcpy(&voutput_max, &params->fp16arith.max, sizeof(voutput_max));
+//     const __fp16 vb = *(__fp16 *)input_b;
 
-    size_t size = batch / sizeof(__fp16);
-    do {
-        // 动态设置向量长度
-        const size_t vl = __riscv_vsetvl_e16m2(size);
+//     size_t size = batch / sizeof(__fp16);
+//     do {
+//         // 动态设置向量长度
+//         const size_t vl = __riscv_vsetvl_e16m2(size);
 
-        // 加载输入向量
-        vfloat16m2_t va = __riscv_vle16_v_f16m2(input_a, vl);
-        vfloat16m2_t vb = __riscv_vle16_v_f16m2(input_b, vl);
-        input_a += vl;
-        input_b += vl;
+//         // 加载输入向量
+//         vfloat16m2_t va = __riscv_vle16_v_f16m2(input_a, vl);
+//         input_a += vl;
 
-        // 执行向量乘法
-        vfloat16m2_t vacc = __riscv_vfmul_vv_f16m2(va, vb, vl);
+//         // 执行向量加法
+//         vfloat16m2_t vacc = __riscv_vfadd_vf_f16m2(va, vb, vl);
 
-        // 应用最小值约束
-        vacc = __riscv_vfmax_vf_f16m2(vacc, voutput_min, vl);
+//         // 应用最小值约束
+//         vacc = __riscv_vfmax_vf_f16m2(vacc, voutput_min, vl);
 
-        // 应用最大值约束
-        vacc = __riscv_vfmin_vf_f16m2(vacc, voutput_max, vl);
+//         // 应用最大值约束
+//         vacc = __riscv_vfmin_vf_f16m2(vacc, voutput_max, vl);
 
-        // 存储结果
-        __riscv_vse16_v_f16m2(output, vacc, vl);
-        output += vl;
-        size -= vl;
-    } while (size > 0);
-}
+//         // 存储结果
+//         __riscv_vse16_v_f16m2(output, vacc, vl);
+//         output += vl;
+//         size -= vl;
+//     } while (size > 0);
+// }
 
-//向量乘法
-void xnn_f16_vmulc_minmax_ukernel__rvv_u2v(
-        size_t batch,
-        const void* input_a,
-        const void* input_b,
-        void* output,
-        const union xnn_f16_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
-{
-    assert(batch != 0);
-    assert(batch % sizeof(__fp16) == 0);
-    assert(input_a != NULL);
-    assert(input_b != NULL);
-    assert(output != NULL);
+// //向量乘法
+// void xnn_f16_vmul_minmax_ukernel__rvv_u2v(
+//         size_t batch,
+//         const void* input_a,
+//         const void* input_b,
+//         void* output,
+//         const union xnn_f16_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+// {
+//     assert(batch != 0);
+//     assert(batch % sizeof(__fp16) == 0);
+//     assert(input_a != NULL);
+//     assert(input_b != NULL);
+//     assert(output != NULL);
 
-    __fp16 voutput_min;
-    __fp16 voutput_max;
-    memcpy(&voutput_min, &params->fp16arith.min, sizeof(voutput_min));
-    memcpy(&voutput_max, &params->fp16arith.max, sizeof(voutput_max));
-    const __fp16 vb = *(__fp16*)input_b;
+//     __fp16 voutput_min;
+//     __fp16 voutput_max;
+//     memcpy(&voutput_min, &params->fp16arith.min, sizeof(voutput_min));
+//     memcpy(&voutput_max, &params->fp16arith.max, sizeof(voutput_max));
 
-    size_t size = batch / sizeof(__fp16);
-    do {
-        // 动态设置向量长度
-        const size_t vl = __riscv_vsetvl_e16m2(size);
+//     size_t size = batch / sizeof(__fp16);
+//     do {
+//         // 动态设置向量长度
+//         const size_t vl = __riscv_vsetvl_e16m2(size);
 
-        // 加载输入向量
-        vfloat16m2_t va = __riscv_vle16_v_f16m2(input_a, vl);
-        input_a += vl;
+//         // 加载输入向量
+//         vfloat16m2_t va = __riscv_vle16_v_f16m2(input_a, vl);
+//         vfloat16m2_t vb = __riscv_vle16_v_f16m2(input_b, vl);
+//         input_a += vl;
+//         input_b += vl;
 
-        // 执行向量乘法
-        vfloat16m2_t vacc = __riscv_vfmul_vf_f16m2(va, vb, vl);
+//         // 执行向量乘法
+//         vfloat16m2_t vacc = __riscv_vfmul_vv_f16m2(va, vb, vl);
 
-        // 应用最小值约束
-        vacc = __riscv_vfmax_vf_f16m2(vacc, voutput_min, vl);
+//         // 应用最小值约束
+//         vacc = __riscv_vfmax_vf_f16m2(vacc, voutput_min, vl);
 
-        // 应用最大值约束
-        vacc = __riscv_vfmin_vf_f16m2(vacc, voutput_max, vl);
+//         // 应用最大值约束
+//         vacc = __riscv_vfmin_vf_f16m2(vacc, voutput_max, vl);
 
-        // 存储结果
-        __riscv_vse16_v_f16m2(output, vacc, vl);
-        output += vl;
-        size -= vl;
-    } while (size > 0);
-}
+//         // 存储结果
+//         __riscv_vse16_v_f16m2(output, vacc, vl);
+//         output += vl;
+//         size -= vl;
+//     } while (size > 0);
+// }
+
+// //向量乘法
+// void xnn_f16_vmulc_minmax_ukernel__rvv_u2v(
+//         size_t batch,
+//         const void* input_a,
+//         const void* input_b,
+//         void* output,
+//         const union xnn_f16_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+// {
+//     assert(batch != 0);
+//     assert(batch % sizeof(__fp16) == 0);
+//     assert(input_a != NULL);
+//     assert(input_b != NULL);
+//     assert(output != NULL);
+
+//     __fp16 voutput_min;
+//     __fp16 voutput_max;
+//     memcpy(&voutput_min, &params->fp16arith.min, sizeof(voutput_min));
+//     memcpy(&voutput_max, &params->fp16arith.max, sizeof(voutput_max));
+//     const __fp16 vb = *(__fp16*)input_b;
+
+//     size_t size = batch / sizeof(__fp16);
+//     do {
+//         // 动态设置向量长度
+//         const size_t vl = __riscv_vsetvl_e16m2(size);
+
+//         // 加载输入向量
+//         vfloat16m2_t va = __riscv_vle16_v_f16m2(input_a, vl);
+//         input_a += vl;
+
+//         // 执行向量乘法
+//         vfloat16m2_t vacc = __riscv_vfmul_vf_f16m2(va, vb, vl);
+
+//         // 应用最小值约束
+//         vacc = __riscv_vfmax_vf_f16m2(vacc, voutput_min, vl);
+
+//         // 应用最大值约束
+//         vacc = __riscv_vfmin_vf_f16m2(vacc, voutput_max, vl);
+
+//         // 存储结果
+//         __riscv_vse16_v_f16m2(output, vacc, vl);
+//         output += vl;
+//         size -= vl;
+//     } while (size > 0);
+// }
