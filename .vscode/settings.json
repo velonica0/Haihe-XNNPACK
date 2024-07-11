@@ -2,6 +2,8 @@
     "files.associations": {
         "math.h": "c",
         "vunary.h": "c",
-        "raddstoreexpminusmax.h": "c"
+        "raddstoreexpminusmax.h": "c",
+        "vbinary.h": "c",
+        "intrinsics-polyfill.h": "c"
     }
 }
