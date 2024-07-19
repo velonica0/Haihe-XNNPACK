@@ -656,6 +656,7 @@ void xnn_x32_packw_gemm_goi_ukernel_x8__rvv_float_u4(
         size_t extra_bytes,
         const void* params)
 {
+    printf("xnn_x32_packw_gemm_goi_ukernel_x8__rvv_float_u4");
     assert(g != 0);
     assert(nc != 0);
     assert(kc != 0);
@@ -678,14 +679,14 @@ void xnn_x32_packw_gemm_goi_ukernel_x8__rvv_float_u4(
             vfloat32m1_t vacc;
             if XNN_LIKELY(b != NULL) {
                 vacc = __riscv_vle32_v_f32m1(b, vl);
-                //b += 8;
-                b += vl; //为了照顾尾部
+                b += 8;
+                //b += vl; //为了照顾尾部
             } else {
                 vacc = __riscv_vfmv_v_f_f32m1(0.0f, vl);
             }
             __riscv_vse32_v_f32m1(out, vacc, vl);
-            //out += 8;
-            out += vl;//为了照顾尾部
+            out += 8;
+            //out += vl;//为了照顾尾部
 
             // KC main loop multiple of 8x8
             size_t k = kc;
@@ -770,6 +771,7 @@ void xnn_x32_packw_gemm_goi_ukernel_x8__rvv_float_u4(
 
     } while (--g != 0);
 }
+
 
 
 
