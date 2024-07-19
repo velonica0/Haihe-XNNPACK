@@ -725,30 +725,31 @@ void xnn_pack_qs8_gemm_xw_goi_w(
   } while (--g != 0);
 }
 
+//遇到边界直接跳过，应该是null，计算时按照0算
 void xnn_pack_f32_gemm_gio_w(
-  size_t g,
-  size_t nc,
-  size_t kc,
-  size_t nr,
-  size_t kr,
-  size_t sr,
-  size_t k_stride,
-  const float* k,
-  const float* b,
-  const void* scale,
-  float* packed_weights,
-  size_t extra_bytes,
-  const void* params)
+  size_t g,                   // g: 分组数
+  size_t nc,                  // nc: 矩阵的列数
+  size_t kc,                  // kc: 矩阵的行数
+  size_t nr,                  // nr: 微内核的列数
+  size_t kr,                  // kr: 微内核的行数
+  size_t sr,                  // sr: 步长
+  size_t k_stride,            // k_stride: 卷积核数据布局步长
+  const float* k,             // k: 卷积核数据指针
+  const float* b,             // b: 偏置数据指针
+  const void* scale,          // scale: 缩放参数
+  float* packed_weights,      // packed_weights: 打包后的权重数据指针
+  size_t extra_bytes,         // extra_bytes: 额外字节数
+  const void* params)         // params: 其他参数
 {
   assert(g != 0);
   assert(nr >= sr);
   assert(k != NULL);
   assert(packed_weights != NULL);
 
-  const size_t skr = sr * kr;
+  const size_t skr = sr * kr; 
   do {
-    for (size_t nr_block_start = 0; nr_block_start < nc; nr_block_start += nr) {
-      const size_t nr_block_size = min(nc - nr_block_start, nr);
+    for (size_t nr_block_start = 0; nr_block_start < nc; nr_block_start += nr) {  //第一层循环，每一块矩阵按照列
+      const size_t nr_block_size = min(nc - nr_block_start, nr);  //nc - nr_block_start在边界时可能会小于nr
       if XNN_LIKELY(b != NULL) {
         for (size_t nr_block_offset = 0; nr_block_offset < nr_block_size; nr_block_offset++) {
           packed_weights[nr_block_offset] = b[nr_block_start + nr_block_offset];
@@ -758,19 +759,19 @@ void xnn_pack_f32_gemm_gio_w(
           packed_weights[nr_block_offset] = 0.0f;
         }
       }
-      packed_weights += nr;
+      packed_weights += nr; 
 
-      for (size_t kr_block_start = 0; kr_block_start < round_up_po2(kc, skr); kr_block_start += kr) {
-        for (size_t nr_block_offset = 0; nr_block_offset < nr_block_size; nr_block_offset++) {
-          for (size_t kr_block_offset = 0; kr_block_offset < kr; kr_block_offset++) {
-            const size_t kc_idx = round_down_po2(kr_block_start, skr) + ((kr_block_start + kr_block_offset + nr_block_offset * kr) & (skr - 1));
+      for (size_t kr_block_start = 0; kr_block_start < round_up_po2(kc, skr); kr_block_start += kr) { //第二层循环，矩阵的行，每一块矩阵按照行
+        for (size_t nr_block_offset = 0; nr_block_offset < nr_block_size; nr_block_offset++) {  //第三层循环，微内核的列，nr_block_size代表剩余的行数
+          for (size_t kr_block_offset = 0; kr_block_offset < kr; kr_block_offset++) {           //第四层循环，微内核的行。边界的行也迭代了，只不过kc_idx计算后不在if (kc_idx < kc)范围，所以不会执行packed_weights[kr_block_offset] = 
+            const size_t kc_idx = round_down_po2(kr_block_start, skr) + ((kr_block_start + kr_block_offset + nr_block_offset * kr) & (skr - 1));  //计算本数据在矩阵的第几行
             if (kc_idx < kc) {
-              packed_weights[kr_block_offset] = k[kc_idx * k_stride + nr_block_start + nr_block_offset];
+              packed_weights[kr_block_offset] = k[kc_idx * k_stride + nr_block_start + nr_block_offset];  //赋值到packed_weights
             }
           }
           packed_weights += kr;
         }
-        packed_weights += (nr - nr_block_size) * kr;
+        packed_weights += (nr - nr_block_size) * kr;  //(nr - nr_block_size)跳过了边界的列部分
       }
       packed_weights = (float*) ((uintptr_t) packed_weights + extra_bytes);
     }

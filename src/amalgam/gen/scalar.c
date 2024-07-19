@@ -30170,10 +30170,10 @@ void xnn_xx_transposev_ukernel__1x1_scalar_memcpy(
 
 void xnn_x32_packw_gemm_goi_ukernel_x8__scalar_float_u4(
   size_t g,
-  size_t nc,
-  size_t kc,
-  size_t nr,
-  size_t kr,
+  size_t nc,                  // nc: 矩阵的行数（转置前）
+  size_t kc,                  // kc: 矩阵的列数（转置前）
+  size_t nr,                  // nr: 微内核的列数
+  size_t kr,                  // kr: 微内核的行数
   size_t sr,
   const uint32_t* weights,
   const uint32_t* bias,
@@ -30196,6 +30196,7 @@ void xnn_x32_packw_gemm_goi_ukernel_x8__scalar_float_u4(
 
   do {
     // NC main loop multiple of 8
+    // 主循环 每8列为1组
     const float* w0 = (const float*) weights;
     size_t n = nc;
     for (; n >= 8; n -= 8) {
@@ -30222,6 +30223,7 @@ void xnn_x32_packw_gemm_goi_ukernel_x8__scalar_float_u4(
       }
       out += 8;
 
+      //+kc 是因为现在是列数，gemm前还没有转置
       const float* w1 = w0 + kc;
       const float* w2 = w1 + kc;
       const float* w3 = w2 + kc;

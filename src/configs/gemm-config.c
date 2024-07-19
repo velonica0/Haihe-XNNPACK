@@ -1305,7 +1305,7 @@ static void init_f32_gemm_config(void) {
         f32_gemm_config.relu.igemm[XNN_MR_TO_INDEX(4)] = xnn_init_hmp_igemm_ukernel((xnn_igemm_ukernel_fn) xnn_f32_igemm_relu_ukernel_4x8__rvv_u2v);
         f32_gemm_config.init.f32 = xnn_init_f32_minmax_scalar_params;
         f32_gemm_config.pack_gemm_gio = (xnn_packw_gemm_gio_ukernel_fn) xnn_pack_f32_gemm_gio_w;
-    	f32_gemm_config.pack_gemm_goi = (xnn_packw_gemm_goi_ukernel_fn) xnn_x32_packw_gemm_goi_ukernel_x8__scalar_float_u4;
+    	f32_gemm_config.pack_gemm_goi = (xnn_packw_gemm_goi_ukernel_fn) xnn_x32_packw_gemm_goi_ukernel_x8__rvv_float_u4;
         f32_gemm_config.mr = 4;
     	f32_gemm_config.nr = 8;
 	#else

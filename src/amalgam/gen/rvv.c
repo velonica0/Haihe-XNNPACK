@@ -642,6 +642,137 @@ void xnn_x32_packw_gemm_goi_ukernel_x4__rvv_float_u4(
 }
 
 
+void xnn_x32_packw_gemm_goi_ukernel_x8__rvv_float_u4(
+        size_t g,
+        size_t nc,
+        size_t kc,
+        size_t nr,
+        size_t kr,
+        size_t sr,
+        const uint32_t* weights,
+        const uint32_t* bias,
+        const void* scale,
+        uint32_t* packed_weights,
+        size_t extra_bytes,
+        const void* params)
+{
+    assert(g != 0);
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(nr == 4);
+    assert(kr == 1);
+    assert(sr == 1);
+    assert(weights != NULL);
+    assert(packed_weights != NULL);
+
+    float* out = (float*) packed_weights;
+    const float* b = (const float*) bias;
+
+    do {
+        // NC main loop multiple of 8
+        const float* w0 = (const float*) weights;
+        size_t n = nc;
+
+        do {
+            size_t vl = __riscv_vsetvl_e32m1(n);
+            vfloat32m1_t vacc;
+            if XNN_LIKELY(b != NULL) {
+                vacc = __riscv_vle32_v_f32m1(b, vl);
+                //b += 8;
+                b += vl; //为了照顾尾部
+            } else {
+                vacc = __riscv_vfmv_v_f_f32m1(0.0f, vl);
+            }
+            __riscv_vse32_v_f32m1(out, vacc, vl);
+            //out += 8;
+            out += vl;//为了照顾尾部
+
+            // KC main loop multiple of 8x8
+            size_t k = kc;
+            for (; k >= 8; k -= 8) {
+                vfloat32m1_t vacc0 = __riscv_vlse32_v_f32m1(w0, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+                vfloat32m1_t vacc1 = __riscv_vlse32_v_f32m1(w0 + 1, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+                vfloat32m1_t vacc2 = __riscv_vlse32_v_f32m1(w0 + 2, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+                vfloat32m1_t vacc3 = __riscv_vlse32_v_f32m1(w0 + 3, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+                vfloat32m1_t vacc4 = __riscv_vlse32_v_f32m1(w0 + 4, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+                vfloat32m1_t vacc5 = __riscv_vlse32_v_f32m1(w0 + 5, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+                vfloat32m1_t vacc6 = __riscv_vlse32_v_f32m1(w0 + 6, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+                vfloat32m1_t vacc7 = __riscv_vlse32_v_f32m1(w0 + 7, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+                __riscv_vse32_v_f32m1(out, vacc0, vl);
+                __riscv_vse32_v_f32m1(out + 8, vacc1, vl);
+                __riscv_vse32_v_f32m1(out + 16, vacc2, vl);
+                __riscv_vse32_v_f32m1(out + 24, vacc3, vl);
+                __riscv_vse32_v_f32m1(out + 32, vacc4, vl);
+                __riscv_vse32_v_f32m1(out + 40, vacc5, vl);
+                __riscv_vse32_v_f32m1(out + 48, vacc6, vl);
+                __riscv_vse32_v_f32m1(out + 56, vacc7, vl);
+                w0 += 8;
+
+                // // NR remainder has less than 8 rows so last row is not loaded
+                // if XNN_UNPREDICTABLE(vl < 2) {
+                //     out[1] = out[0];
+                //     out[5] = out[4];
+                //     out[9] = out[8];
+                //     out[13] = out[12];
+                // }
+                // if XNN_UNPREDICTABLE(vl <= 2) {
+                //     out[2] = out[1];
+                //     out[6] = out[5];
+                //     out[10] = out[9];
+                //     out[14] = out[13];
+                // }
+                // if XNN_UNPREDICTABLE(vl < 4) {
+                //     out[1] = out[0];
+                //     out[5] = out[4];
+                //     out[9] = out[8];
+                //     out[13] = out[12];
+                // }
+                // if XNN_UNPREDICTABLE(vl <= 4) {
+                //     out[2] = out[1];
+                //     out[6] = out[5];
+                //     out[10] = out[9];
+                //     out[14] = out[13];
+                // }
+                // if XNN_UNPREDICTABLE(vl < 6) {
+                //     out[1] = out[0];
+                //     out[5] = out[4];
+                //     out[9] = out[8];
+                //     out[13] = out[12];
+                // }
+                // if XNN_UNPREDICTABLE(vl <= 6) {
+                //     out[2] = out[1];
+                //     out[6] = out[5];
+                //     out[10] = out[9];
+                //     out[14] = out[13];
+                // }
+                out += 64;
+            }
+            // KC remainder
+            for (; k != 0; --k) {
+                vacc = __riscv_vlse32_v_f32m1(w0, kc * sizeof(float), vl); //按列取vl个数据存入寄存器，行长为kc
+                __riscv_vse32_v_f32m1(out, vacc, vl);
+                w0++;
+                // if XNN_UNPREDICTABLE(vl < 2) {
+                //     out[1] = out[0];
+                // }
+                // if XNN_UNPREDICTABLE(vl <= 2) {
+                //     out[2] = out[1];
+                // }
+                out += 8;
+            }
+
+            out = (float*) ((uintptr_t) out + extra_bytes);
+            w0 += kc * (8-1);//w0此时已经到一行的最末尾了
+            n -= vl;
+        } while (n != 0);
+
+        weights += nc * kc;
+
+    } while (--g != 0);
+}
+
+
+
 void xnn_f32_igemm_ukernel_4x4__rvv_u1v(
     size_t mr,
     size_t nc,
