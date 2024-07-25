@@ -65,10 +65,10 @@ static void init_f16_maxpool_config(void) {
     }
   #elif XNN_ARCH_RISCV
     #if XNN_ENABLE_RISCV_VECTOR
-        f16_maxpool_config.ukernel = (xnn_maxpool_ukernel_fn) xnn_f16_maxpool_minmax_ukernel_9p8x__rvv_u2v;
-        f16_maxpool_config.init.f16 = xnn_init_f16_minmax_fp16arith_params;
-        f16_maxpool_config.first_pass_tile_size = 9;
-        f16_maxpool_config.remainder_pass_tile_size = 8;
+        // f16_maxpool_config.ukernel = (xnn_maxpool_ukernel_fn) xnn_f16_maxpool_minmax_ukernel_9p8x__rvv_u2v;
+        // f16_maxpool_config.init.f16 = xnn_init_f16_minmax_fp16arith_params;
+        // f16_maxpool_config.first_pass_tile_size = 9;
+        // f16_maxpool_config.remainder_pass_tile_size = 8;
     #else
         // f16_maxpool_config.ukernel = (xnn_maxpool_ukernel_fn) xnn_f16_maxpool_minmax_ukernel_9p8x__scalar_c1;
         // f16_maxpool_config.init.f32 = xnn_init_f16_minmax_scalar_params;
