@@ -9,7 +9,13 @@
 
 #include <assert.h>
 
-#include "riscv_v_071_fix.h"
+#ifdef CORE_C920
+    #include "riscv_v_071_fix.h"
+    printf("Core C920 detected\n");
+#elif CORE_K1
+    #include <riscv_vector.h>
+    printf("Core K1 detected\n");
+#endif
 
 #include <xnnpack/common.h>
 #include <xnnpack/vbinary.h>

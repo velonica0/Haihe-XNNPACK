@@ -10,7 +10,21 @@
 #include <string.h>
 
 //#include <riscv_vector.h>
-#include "riscv_v_071_fix.h"
+#ifdef CORE_C920
+    #ifdef CORE_C920
+    #include "riscv_v_071_fix.h"
+    printf("Core C920 detected\n");
+#elif CORE_K1
+    #include <riscv_vector.h>
+    printf("Core K1 detected\n");
+#endif
+    printf("Core C920 detected\n");
+#elif CORE_K1
+    #include <riscv_vector.h>
+    printf("Core K1 detected\n");
+#endif
+    
+
 #include <fp16/fp16.h>
 
 #include <xnnpack/common.h>
