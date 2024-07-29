@@ -2206,7 +2206,6 @@ void xnn_f32_igemm_ukernel_1x8__rvv_u2v(
     int vlenb_num = vlenb_number();
 
     if(vlenb_num==8){
-        printf("xnn_f32_igemm_ukernel_1x8__rvv_u2v");
         do {
             size_t vl = __riscv_vsetvl_e32m1(nc); // vector length
             vfloat32m1_t vacc0 = __riscv_vle32_v_f32m1(w, 8); // 1st row count
@@ -2241,7 +2240,6 @@ void xnn_f32_igemm_ukernel_1x8__rvv_u2v(
         } while (nc != 0);
     }
     else if(vlenb_num==4){
-        printf("xnn_f32_igemm_ukernel_1x8__rvv_u2v");
         do {
             size_t vl = __riscv_vsetvl_e32m2(nc); // vector length
             vfloat32m2_t vacc0 = __riscv_vle32_v_f32m2(w, 8); // 1st row count
@@ -2322,7 +2320,6 @@ void xnn_f32_igemm_ukernel_4x8__rvv_u2v(
     int vlenb_num = vlenb_number();
 
     if(vlenb_num==8){
-        printf("xnn_f32_igemm_ukernel_4x8__rvv_u2v");
         do {
             size_t vl = __riscv_vsetvl_e32m1(nc); // vector length
             vfloat32m1_t vacc0 = __riscv_vle32_v_f32m1(w, 8); // 1st row count
@@ -2487,7 +2484,6 @@ void xnn_f32_gemm_ukernel_1x8__rvv_u2v(
     int vlenb_num = vlenb_number();
     
     if(vlenb_num == 8){
-        printf("xnn_f32_gemm_ukernel_1x8__rvv_u2v");
         do {
             size_t vl = __riscv_vsetvl_e32m1(nc);
             vfloat32m1_t vacc = __riscv_vle32_v_f32m1(w, 8);
@@ -2507,7 +2503,6 @@ void xnn_f32_gemm_ukernel_1x8__rvv_u2v(
         } while (nc != 0);
     }
     else if(vlenb_num == 4){
-        printf("xnn_f32_gemm_ukernel_1x8__rvv_u2v");
         do {
             size_t vl = __riscv_vsetvl_e32m2(nc);
             vfloat32m2_t vacc = __riscv_vle32_v_f32m2(w, 8);
@@ -2574,7 +2569,6 @@ void xnn_f32_gemm_ukernel_4x8__rvv_u2v(
     int vlenb_num = vlenb_number();
 
     if(vlenb_num==8){
-        printf("xnn_f32_gemm_ukernel_4x8__rvv_u2v");
         size_t kcl = kc / sizeof(float);
 
         do {
@@ -2614,7 +2608,6 @@ void xnn_f32_gemm_ukernel_4x8__rvv_u2v(
         } while (nc != 0);
     }
     else if(vlenb_num==4){
-         printf("xnn_f32_gemm_ukernel_4x8__rvv_u2v");
         size_t kcl = kc / sizeof(float);
 
         do {
@@ -2688,7 +2681,6 @@ void xnn_f32_gemm_minmax_ukernel_1x8__rvv_u2v(
     int vlenb_num = vlenb_number();
 
     if(vlenb_num==8){
-        printf("xnn_f32_gemm_minmax_ukernel_1x8__rvv_u2v");
         size_t kcl = kc / sizeof(float);
         do {
             size_t vl = __riscv_vsetvl_e32m1(nc);
@@ -2785,7 +2777,6 @@ void xnn_f32_gemm_minmax_ukernel_4x8__rvv_u2v(
 
     if(vlenb_num==8){
         size_t kcl = kc / sizeof(float);
-        printf("xnn_f32_gemm_minmax_ukernel_4x8__rvv_u2v");
         do {
             
             size_t vl = __riscv_vsetvl_e32m1(nc); // vector length
@@ -2920,7 +2911,6 @@ void xnn_f32_igemm_minmax_ukernel_1x8__rvv_u2v(
     int vlenb_num = vlenb_number();
 
     if(vlenb_num==8){
-        printf("xnn_f32_igemm_minmax_ukernel_1x8__rvv_u2v");
         do {
             
             size_t vl = __riscv_vsetvl_e32m1(nc); // vector length
@@ -3043,7 +3033,6 @@ void xnn_f32_igemm_minmax_ukernel_4x8__rvv_u2v(
     int vlenb_num = vlenb_number();
 
     if(vlenb_num==8){
-         printf("xnn_f32_igemm_minmax_ukernel_4x8__rvv_u2v");
         do {
            
             size_t vl = __riscv_vsetvl_e32m1(nc); // vector length
@@ -3227,7 +3216,6 @@ void xnn_f32_gemm_relu_ukernel_1x8__rvv_u2v(
 
     if(vlenb_num==8){
         size_t kcl = kc / sizeof(float);
-        printf("xnn_f32_gemm_relu_ukernel_1x8__rvv_u2v");
         do {
             
             size_t vl = __riscv_vsetvl_e32m1(nc);
@@ -3319,7 +3307,6 @@ void xnn_f32_gemm_relu_ukernel_4x8__rvv_u2v(
 
     if(vlenb_num==8){
         size_t kcl = kc / sizeof(float);
-printf("xnn_f32_gemm_relu_ukernel_4x8__rvv_u2v");
         do {
             
             size_t vl = __riscv_vsetvl_e32m1(nc); // vector length
@@ -3441,7 +3428,6 @@ void xnn_f32_igemm_relu_ukernel_1x8__rvv_u2v(
     int vlenb_num = vlenb_number();
 
     if(vlenb_num==8){
-        printf("xnn_f32_igemm_relu_ukernel_1x8__rvv_u2v");
         do {
             
             size_t vl = __riscv_vsetvl_e32m1(nc); // vector length
@@ -3559,7 +3545,6 @@ void xnn_f32_igemm_relu_ukernel_4x8__rvv_u2v(
     int vlenb_num = vlenb_number();
 
     if(vlenb_num==8){
-        printf("xnn_f32_igemm_relu_ukernel_4x8__rvv_u2v");
         do {
             
             size_t vl = __riscv_vsetvl_e32m1(nc); // vector length
