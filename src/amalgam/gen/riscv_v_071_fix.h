@@ -6,6 +6,7 @@
 #define __riscv_vsetvl_e32m1    vsetvl_e32m1       // 设置向量寄存器每次操作的元素个数
 #define __riscv_vle32_v_f32m1   vle32_v_f32m1      // 从数组a中加载vl个元素到向量寄存器va中
 #define __riscv_vfadd_vv_f32m1  vfadd_vv_f32m1     // 向量寄存器va和向量寄存器vb中vl个元素对应相加，结果为vc
+#define __riscv_vfadd_vv_f32m2  vfadd_vv_f32m2     // 向量寄存器va和向量寄存器vb中vl个元素对应相加，结果为vc
 #define __riscv_vse32_v_f32m1   vse32_v_f32m1      // 将向量寄存器中的vl个元素存到数组c中
 
 #define __riscv_vfadd_vf_f32m8             vfadd_vf_f32m8
