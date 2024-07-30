@@ -162,18 +162,18 @@ void xnn_f32_raddstoreexpminusmax_ukernel__rvv_rr2_p6_u4v(
     vsum = __riscv_vfadd_vv_f32m4_tu(vsum, vsum, vexp, vl);
   } while(avl > 0);
 
-        vfloat32m1_t v0 = __riscv_vfmv_s_f_f32m1(0.0f, 1);
-    *sum = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m4_f32m1(vsum, v0, n));
-
-    // #ifdef CORE_C920
-    //     vfloat32m1_t v0, v1;
-    //     v0 = vfmv_s_f_f32m1(v0, 0.0f, 1);
-    //     v1 = vfredosum_vs_f32m4_f32m1(v1, vsum, v0, n);
-    //     *sum = __riscv_vfmv_f_s_f32m1_f32(v1);
-    // #elif CORE_K1
     //     vfloat32m1_t v0 = __riscv_vfmv_s_f_f32m1(0.0f, 1);
-    //     *sum = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m4_f32m1(vsum, v0, n));
-    // #endif
+    // *sum = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m4_f32m1(vsum, v0, n));
+
+    #ifdef CORE_C920
+        vfloat32m1_t v0, v1;
+        v0 = vfmv_s_f_f32m1(v0, 0.0f, 1);
+        v1 = vfredosum_vs_f32m4_f32m1(v1, vsum, v0, n);
+        *sum = __riscv_vfmv_f_s_f32m1_f32(v1);
+    #elif CORE_K1
+        vfloat32m1_t v0 = __riscv_vfmv_s_f_f32m1(0.0f, 1);
+        *sum = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m4_f32m1(vsum, v0, n));
+    #endif
 
 }
 
@@ -201,19 +201,19 @@ void xnn_f32_rmax_ukernel__rvv_u8v(
     t0 = __riscv_vfmax_vv_f32m8_tu(t0, t0, vec, vl);
   }
 
-        vfloat32m1_t fmax = __riscv_vfmv_s_f_f32m1(-INFINITY, 1);
+    //     vfloat32m1_t fmax = __riscv_vfmv_s_f_f32m1(-INFINITY, 1);
+    //   output[0] = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredmax_vs_f32m8_f32m1(t0, fmax, N));
+
+
+  #ifdef CORE_C920
+    vfloat32m1_t fmax, v0;
+    fmax = vfmv_s_f_f32m1(fmax, -INFINITY, 1);
+    v0 = vfredmax_vs_f32m8_f32m1(v0, t0, fmax, N);
+    output[0] = __riscv_vfmv_f_s_f32m1_f32(v0);
+  #elif CORE_K1
+      vfloat32m1_t fmax = __riscv_vfmv_s_f_f32m1(-INFINITY, 1);
       output[0] = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredmax_vs_f32m8_f32m1(t0, fmax, N));
-
-
-//   #ifdef CORE_C920
-//     vfloat32m1_t fmax, v0;
-//     fmax = vfmv_s_f_f32m1(fmax, -INFINITY, 1);
-//     v0 = vfredmax_vs_f32m8_f32m1(v0, t0, fmax, N);
-//     output[0] = __riscv_vfmv_f_s_f32m1_f32(v0);
-//   #elif CORE_K1
-//       vfloat32m1_t fmax = __riscv_vfmv_s_f_f32m1(-INFINITY, 1);
-//       output[0] = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredmax_vs_f32m8_f32m1(t0, fmax, N));
-//   #endif
+  #endif
     
 }
 
@@ -243,26 +243,26 @@ void xnn_f32_rminmax_ukernel__rvv_u8v(
     t1 = __riscv_vfmax_vv_f32m8_tu(t1, t1, vec, vl);
   }
 
-      vfloat32m1_t fmin = __riscv_vfmv_s_f_f32m1(INFINITY, 1);
+    //   vfloat32m1_t fmin = __riscv_vfmv_s_f_f32m1(INFINITY, 1);
+    // vfloat32m1_t fmax = __riscv_vfmv_s_f_f32m1(-INFINITY, 1);
+    // output[0] = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredmin_vs_f32m8_f32m1(t0, fmin, N));
+    // output[1] = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredmax_vs_f32m8_f32m1(t1, fmax, N));
+
+
+  #ifdef CORE_C920
+    vfloat32m1_t fmin, fmax, v0, v1;
+    fmin = vfmv_s_f_f32m1(fmin, INFINITY, 1);
+    fmax = vfmv_s_f_f32m1(fmax, -INFINITY, 1);
+    v0 = vfredmin_vs_f32m8_f32m1(v0, t0, fmin, N);
+    v1 = vfredmax_vs_f32m8_f32m1(v1, t1, fmax, N);
+    output[0] = __riscv_vfmv_f_s_f32m1_f32(v0);
+    output[1] = __riscv_vfmv_f_s_f32m1_f32(v1);
+  #elif CORE_K1
+    vfloat32m1_t fmin = __riscv_vfmv_s_f_f32m1(INFINITY, 1);
     vfloat32m1_t fmax = __riscv_vfmv_s_f_f32m1(-INFINITY, 1);
     output[0] = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredmin_vs_f32m8_f32m1(t0, fmin, N));
     output[1] = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredmax_vs_f32m8_f32m1(t1, fmax, N));
-
-
-//   #ifdef CORE_C920
-//     vfloat32m1_t fmin, fmax, v0, v1;
-//     fmin = vfmv_s_f_f32m1(fmin, INFINITY, 1);
-//     fmax = vfmv_s_f_f32m1(fmax, -INFINITY, 1);
-//     v0 = vfredmin_vs_f32m8_f32m1(v0, t0, fmin, N);
-//     v1 = vfredmax_vs_f32m8_f32m1(v1, t1, fmax, N);
-//     output[0] = __riscv_vfmv_f_s_f32m1_f32(v0);
-//     output[1] = __riscv_vfmv_f_s_f32m1_f32(v1);
-//   #elif CORE_K1
-//     vfloat32m1_t fmin = __riscv_vfmv_s_f_f32m1(INFINITY, 1);
-//     vfloat32m1_t fmax = __riscv_vfmv_s_f_f32m1(-INFINITY, 1);
-//     output[0] = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredmin_vs_f32m8_f32m1(t0, fmin, N));
-//     output[1] = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredmax_vs_f32m8_f32m1(t1, fmax, N));
-//   #endif
+  #endif
 }
 
 void xnn_qs8_vmul_minmax_fp32_ukernel__rvv_u2v(
