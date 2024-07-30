@@ -79,8 +79,8 @@
 // #define __riscv_vfmul_vf_f32m4_m           vfmul_vf_f32m4_m
 // #define __riscv_vfmul_vf_f32m8_m           vfmul_vf_f32m8_m
 
-#define __riscv_vfadd_vv_f32m1_tu(vsum, vsum1, vexp, vl)	vfadd_vv_f32m1(vsum, vexp, vl)
-#define __riscv_vfadd_vv_f32m2_tu(vsum, vsum1, vexp, vl)	vfadd_vv_f32m2(vsum, vexp, vl)
+// #define __riscv_vfadd_vv_f32m1_tu(vsum, vsum1, vexp, vl)	vfadd_vv_f32m1(vsum, vexp, vl)
+// #define __riscv_vfadd_vv_f32m2_tu(vsum, vsum1, vexp, vl)	vfadd_vv_f32m2(vsum, vexp, vl)
 #define __riscv_vfadd_vv_f32m4_tu(vsum, vsum1, vexp, vl)	vfadd_vv_f32m4(vsum, vexp, vl)
 #define __riscv_vfadd_vv_f32m8_tu(vsum, vsum1, vexp, vl)	vfadd_vv_f32m8(vsum, vexp, vl)
 #define __riscv_vfmax_vv_f32m1_tu(t0, t1, vec, vl)		vfmax_vv_f32m1(t0, vec, vl)
