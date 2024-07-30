@@ -158,7 +158,8 @@
 #define __riscv_vfrdiv_vf_f16m1          vfrdiv_vf_f16m1
 #define __riscv_vfrdiv_vf_f16m2          vfrdiv_vf_f16m2
 
-#define  __riscv_vfmv_s_f_f32m1(INFINITY, 1)  vfmv_s_f_f32m1(INFINITY, 1)
+// #define  __riscv_vfmv_s_f_f32m1(INFINITY, 1)  vfmv_s_f_f32m1(INFINITY, 1)
+// #define  __riscv_vfmv_s_f_f32m1(0.0f, 1)      vfmv_s_f_f32m1(v0, 0.0f, 1)
 
 
 #endif 
