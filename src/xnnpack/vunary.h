@@ -1282,8 +1282,15 @@ DECLARE_F32_VSIGMOID_UKERNEL_FUNCTION(xnn_f32_vsigmoid_ukernel__scalar_rr2_p5_di
 DECLARE_F32_VSIGMOID_UKERNEL_FUNCTION(xnn_f32_vsigmoid_ukernel__scalar_rr2_p5_div_u2)
 DECLARE_F32_VSIGMOID_UKERNEL_FUNCTION(xnn_f32_vsigmoid_ukernel__scalar_rr2_p5_div_u4)
 
+//rvv.c
+DECLARE_F32_VSIGMOID_UKERNEL_FUNCTION(xnn_f32_vsigmoid_ukernel__rvv_u1v)
+DECLARE_F32_VSIGMOID_UKERNEL_FUNCTION(xnn_f32_vsigmoid_ukernel__thead_u1v)
 DECLARE_F32_VSIGMOID_UKERNEL_FUNCTION(xnn_f32_vsigmoid_ukernel__rvv_u2v)
 DECLARE_F32_VSIGMOID_UKERNEL_FUNCTION(xnn_f32_vsigmoid_ukernel__thead_u2v)
+DECLARE_F32_VSIGMOID_UKERNEL_FUNCTION(xnn_f32_vsigmoid_ukernel__rvv_u4v)
+DECLARE_F32_VSIGMOID_UKERNEL_FUNCTION(xnn_f32_vsigmoid_ukernel__thead_u4v)
+DECLARE_F32_VSIGMOID_UKERNEL_FUNCTION(xnn_f32_vsigmoid_ukernel__rvv_u8v)
+DECLARE_F32_VSIGMOID_UKERNEL_FUNCTION(xnn_f32_vsigmoid_ukernel__thead_u8v)
 
 #define DECLARE_F32_VSQR_UKERNEL_FUNCTION(fn_name) \
   XNN_INTERNAL void fn_name(                       \

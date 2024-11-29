@@ -610,6 +610,376 @@ void xnn_f32_gemm_ukernel_4x4__rvv_u1v(
     } while (nc != 0);
 }
 
+void xnn_f32_gemm_ukernel_1x8__rvv_u2v(
+        size_t mr,
+        size_t nc,
+        size_t kc,
+        const float* restrict a,
+        size_t a_stride,
+        const float* restrict w,
+        float* restrict c,
+        size_t cm_stride,
+        size_t cn_stride,
+        const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 1);
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    const float* a0 = a;
+    float* c0 = c;
+    size_t kcl = kc / sizeof(float);
+
+    do {
+        size_t vl = vsetvl_e32m2(nc);
+        vfloat32m2_t vacc = vle32_v_f32m2(w, 8);
+        w += 8;
+        for(size_t k = 0; k < kcl ; k++){
+            vfloat32m2_t vw = vle32_v_f32m2(w, 8);
+            w += 8;
+            vacc = vfmacc_vf_f32m2(vacc, *a0, vw, 8);
+            a0++;
+        }
+        vse32_v_f32m2(c0, vacc, vl);
+        if(nc >= 4){
+            c0 = (float*) ((uintptr_t) c0 + cn_stride);
+            a0 = (const void*) ((uintptr_t) a0 - kc);
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+void xnn_f32_gemm_ukernel_4x8__rvv_u2v(
+        size_t mr,
+        size_t nc,
+        size_t kc,
+        const float* restrict a,
+        size_t a_stride,
+        const float* restrict w,
+        float* restrict c,
+        size_t cm_stride,
+        size_t cn_stride,
+        const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 4); // max process 1 row
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    const float* a0 = a;
+    float* c0 = c;
+    const float* a1 = (const float*) ((uintptr_t) a0 + a_stride);
+    float* c1 = (float*) ((uintptr_t) c0 + cm_stride);
+    if XNN_UNPREDICTABLE(mr < 2) {
+        a1 = a0;
+        c1 = c0;
+    }
+    const float* a2 = (const float*) ((uintptr_t) a1 + a_stride);
+    float* c2 = (float*) ((uintptr_t) c1 + cm_stride);
+    if XNN_UNPREDICTABLE(mr <= 2) {
+        a2 = a1;
+        c2 = c1;
+    }
+    const float* a3 = (const float*) ((uintptr_t) a2 + a_stride);
+    float* c3 = (float*) ((uintptr_t) c2 + cm_stride);
+    if XNN_UNPREDICTABLE(mr != 4) {
+        a3 = a2;
+        c3 = c2;
+    }
+
+    size_t kcl = kc / sizeof(float);
+
+    do {
+        size_t vl = vsetvl_e32m2(nc); // vector length
+        vfloat32m2_t vacc0 = vle32_v_f32m2(w, 8); // 1st row count
+        vfloat32m2_t vacc1 = vle32_v_f32m2(w, 8); // 1st row count
+        vfloat32m2_t vacc2 = vle32_v_f32m2(w, 8); // 1st row count
+        vfloat32m2_t vacc3 = vle32_v_f32m2(w, 8); // 1st row count
+        w += 8;
+        for(size_t k = 0; k < kcl ; k++){
+            vfloat32m2_t vw = vle32_v_f32m2(w, 8);
+            w += 8;
+            vacc0 = vfmacc_vf_f32m2(vacc0, *a0, vw, 8); // update 1st row count
+            vacc1 = vfmacc_vf_f32m2(vacc1, *a1, vw, 8); // update 1st row count
+            vacc2 = vfmacc_vf_f32m2(vacc2, *a2, vw, 8); // update 1st row count
+            vacc3 = vfmacc_vf_f32m2(vacc3, *a3, vw, 8); // update 1st row count
+            a0++;
+            a1++;
+            a2++;
+            a3++;
+        }
+        vse32_v_f32m2(c0, vacc0, vl); // store 1st row result
+        vse32_v_f32m2(c1, vacc1, vl); // store 1st row result
+        vse32_v_f32m2(c2, vacc2, vl); // store 1st row result
+        vse32_v_f32m2(c3, vacc3, vl); // store 1st row result
+        if(nc >= 4){
+            c0 = (float*) ((uintptr_t) c0 + cn_stride); // update 1st row matrix C pointer
+            c1 = (float*) ((uintptr_t) c1 + cn_stride); // update 1st row matrix C pointer
+            c2 = (float*) ((uintptr_t) c2 + cn_stride); // update 1st row matrix C pointer
+            c3 = (float*) ((uintptr_t) c3 + cn_stride); // update 1st row matrix C pointer
+            a0 = (const void*) ((uintptr_t) a0 - kc); // update 1st row matrix A pointer
+            a1 = (const void*) ((uintptr_t) a1 - kc); // update 1st row matrix A pointer
+            a2 = (const void*) ((uintptr_t) a2 - kc); // update 1st row matrix A pointer
+            a3 = (const void*) ((uintptr_t) a3 - kc); // update 1st row matrix A pointer
+        }
+        nc -= vl;
+    } while (nc != 0);
+
+}
+
+void xnn_f32_gemm_ukernel_1x16__rvv_u4v(
+        size_t mr,
+        size_t nc,
+        size_t kc,
+        const float* restrict a,
+        size_t a_stride,
+        const float* restrict w,
+        float* restrict c,
+        size_t cm_stride,
+        size_t cn_stride,
+        const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 1);
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    const float* a0 = a;
+    float* c0 = c;
+    size_t kcl = kc / sizeof(float);
+
+    do {
+        size_t vl = vsetvl_e32m4(nc);
+        vfloat32m4_t vacc = vle32_v_f32m4(w, 16);
+        w += 16;
+        for(size_t k = 0; k < kcl ; k++){
+            vfloat32m4_t vw = vle32_v_f32m4(w, 16);
+            w += 16;
+            vacc = vfmacc_vf_f32m4(vacc, *a0, vw, 16);
+            a0++;
+        }
+        vse32_v_f32m4(c0, vacc, vl);
+        if(nc >= 4){
+            c0 = (float*) ((uintptr_t) c0 + cn_stride);
+            a0 = (const void*) ((uintptr_t) a0 - kc);
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+void xnn_f32_gemm_ukernel_4x16__rvv_u4v(
+        size_t mr,
+        size_t nc,
+        size_t kc,
+        const float* restrict a,
+        size_t a_stride,
+        const float* restrict w,
+        float* restrict c,
+        size_t cm_stride,
+        size_t cn_stride,
+        const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 4); // max process 1 row
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    const float* a0 = a;
+    float* c0 = c;
+    const float* a1 = (const float*) ((uintptr_t) a0 + a_stride);
+    float* c1 = (float*) ((uintptr_t) c0 + cm_stride);
+    if XNN_UNPREDICTABLE(mr < 2) {
+        a1 = a0;
+        c1 = c0;
+    }
+    const float* a2 = (const float*) ((uintptr_t) a1 + a_stride);
+    float* c2 = (float*) ((uintptr_t) c1 + cm_stride);
+    if XNN_UNPREDICTABLE(mr <= 2) {
+        a2 = a1;
+        c2 = c1;
+    }
+    const float* a3 = (const float*) ((uintptr_t) a2 + a_stride);
+    float* c3 = (float*) ((uintptr_t) c2 + cm_stride);
+    if XNN_UNPREDICTABLE(mr != 4) {
+        a3 = a2;
+        c3 = c2;
+    }
+
+    size_t kcl = kc / sizeof(float);
+
+    do {
+        size_t vl = vsetvl_e32m4(nc); // vector length
+        vfloat32m4_t vacc0 = vle32_v_f32m4(w, 16); // 1st row count
+        vfloat32m4_t vacc1 = vle32_v_f32m4(w, 16); // 1st row count
+        vfloat32m4_t vacc2 = vle32_v_f32m4(w, 16); // 1st row count
+        vfloat32m4_t vacc3 = vle32_v_f32m4(w, 16); // 1st row count
+        w += 16;
+        for(size_t k = 0; k < kcl ; k++){
+            vfloat32m4_t vw = vle32_v_f32m4(w, 16);
+            w += 16;
+            vacc0 = vfmacc_vf_f32m4(vacc0, *a0, vw, 16); // update 1st row count
+            vacc1 = vfmacc_vf_f32m4(vacc1, *a1, vw, 16); // update 1st row count
+            vacc2 = vfmacc_vf_f32m4(vacc2, *a2, vw, 16); // update 1st row count
+            vacc3 = vfmacc_vf_f32m4(vacc3, *a3, vw, 16); // update 1st row count
+            a0++;
+            a1++;
+            a2++;
+            a3++;
+        }
+        vse32_v_f32m4(c0, vacc0, vl); // store 1st row result
+        vse32_v_f32m4(c1, vacc1, vl); // store 1st row result
+        vse32_v_f32m4(c2, vacc2, vl); // store 1st row result
+        vse32_v_f32m4(c3, vacc3, vl); // store 1st row result
+        if(nc >= 4){
+            c0 = (float*) ((uintptr_t) c0 + cn_stride); // update 1st row matrix C pointer
+            c1 = (float*) ((uintptr_t) c1 + cn_stride); // update 1st row matrix C pointer
+            c2 = (float*) ((uintptr_t) c2 + cn_stride); // update 1st row matrix C pointer
+            c3 = (float*) ((uintptr_t) c3 + cn_stride); // update 1st row matrix C pointer
+            a0 = (const void*) ((uintptr_t) a0 - kc); // update 1st row matrix A pointer
+            a1 = (const void*) ((uintptr_t) a1 - kc); // update 1st row matrix A pointer
+            a2 = (const void*) ((uintptr_t) a2 - kc); // update 1st row matrix A pointer
+            a3 = (const void*) ((uintptr_t) a3 - kc); // update 1st row matrix A pointer
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+void xnn_f32_gemm_ukernel_1x32__rvv_u8v(
+        size_t mr,
+        size_t nc,
+        size_t kc,
+        const float* restrict a,
+        size_t a_stride,
+        const float* restrict w,
+        float* restrict c,
+        size_t cm_stride,
+        size_t cn_stride,
+        const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+     assert(mr != 0);
+    assert(mr <= 1);
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    const float* a0 = a;
+    float* c0 = c;
+    size_t kcl = kc / sizeof(float);
+
+    do {
+        size_t vl = vsetvl_e32m8(nc);
+        vfloat32m8_t vacc = vle32_v_f32m8(w, 32);
+        w += 32;
+        for(size_t k = 0; k < kcl ; k++){
+            vfloat32m8_t vw = vle32_v_f32m8(w, 32);
+            w += 32;
+            vacc = vfmacc_vf_f32m8(vacc, *a0, vw, 32);
+            a0++;
+        }
+        vse32_v_f32m8(c0, vacc, vl);
+        if(nc >= 4){
+            c0 = (float*) ((uintptr_t) c0 + cn_stride);
+            a0 = (const void*) ((uintptr_t) a0 - kc);
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+void xnn_f32_gemm_ukernel_4x32__rvv_u8v(
+    size_t mr,
+        size_t nc,
+        size_t kc,
+        const float* restrict a,
+        size_t a_stride,
+        const float* restrict w,
+        float* restrict c,
+        size_t cm_stride,
+        size_t cn_stride,
+        const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    const float* a0 = a;
+    float* c0 = c;
+    const float* a1 = (const float*) ((uintptr_t) a0 + a_stride);
+    float* c1 = (float*) ((uintptr_t) c0 + cm_stride);
+    if XNN_UNPREDICTABLE(mr < 2) {
+        a1 = a0;
+        c1 = c0;
+    }
+    const float* a2 = (const float*) ((uintptr_t) a1 + a_stride);
+    float* c2 = (float*) ((uintptr_t) c1 + cm_stride);
+    if XNN_UNPREDICTABLE(mr <= 2) {
+        a2 = a1;
+        c2 = c1;
+    }
+    const float* a3 = (const float*) ((uintptr_t) a2 + a_stride);
+    float* c3 = (float*) ((uintptr_t) c2 + cm_stride);
+    if XNN_UNPREDICTABLE(mr != 4) {
+        a3 = a2;
+        c3 = c2;
+    }
+
+    size_t kcl = kc / sizeof(float);
+
+    do
+    {
+        size_t vl = vsetvl_e32m8(nc);
+        vfloat32m8_t vacc0 = vle32_v_f32m8(w, 32); // 1st row count
+        vfloat32m8_t vacc1 = vle32_v_f32m8(w, 32); // 1st row count
+        vfloat32m8_t vacc2 = vle32_v_f32m8(w, 32); // 1st row count
+        vfloat32m8_t vacc3 = vle32_v_f32m8(w, 32); // 1st row count
+        w += 32;
+        for(size_t k = 0; k < kcl ; k++){
+            vfloat32m8_t vw = vle32_v_f32m8(w, 32);
+            w += 32;
+            vacc0 = vfmacc_vf_f32m8(vacc0, *a0, vw, 32); // update 1st row count
+            vacc1 = vfmacc_vf_f32m8(vacc1, *a1, vw, 32); // update 1st row count
+            vacc2 = vfmacc_vf_f32m8(vacc2, *a2, vw, 32); // update 1st row count
+            vacc3 = vfmacc_vf_f32m8(vacc3, *a3, vw, 32); // update 1st row count
+            a0++;
+            a1++;
+            a2++;
+            a3++;
+        }
+        vse32_v_f32m8(c0, vacc0, vl); // store 1st row result
+        vse32_v_f32m8(c1, vacc1, vl); // store 1st row result
+        vse32_v_f32m8(c2, vacc2, vl); // store 1st row result
+        vse32_v_f32m8(c3, vacc3, vl); // store 1st row result
+        if(nc >= 4){
+            c0 = (float*) ((uintptr_t) c0 + cn_stride); // update 1st row matrix C pointer
+            c1 = (float*) ((uintptr_t) c1 + cn_stride); // update 1st row matrix C pointer
+            c2 = (float*) ((uintptr_t) c2 + cn_stride); // update 1st row matrix C pointer
+            c3 = (float*) ((uintptr_t) c3 + cn_stride); // update 1st row matrix C pointer
+            a0 = (const void*) ((uintptr_t) a0 - kc); // update 1st row matrix A pointer
+            a1 = (const void*) ((uintptr_t) a1 - kc); // update 1st row matrix A pointer
+            a2 = (const void*) ((uintptr_t) a2 - kc); // update 1st row matrix A pointer
+            a3 = (const void*) ((uintptr_t) a3 - kc); // update 1st row matrix A pointer
+        }
+        nc -= vl;
+    } while (nc != 0);
+    
+}
+
+
 //void xnn_f32_gemm_ukernel_4x2__rvv_u1v(
 //        size_t mr,
 //        size_t nc,
@@ -885,109 +1255,7 @@ void xnn_x32_packw_gemm_goi_ukernel_x4__rvv_float_u4(
     } while (--g != 0);
 }
 
-void xnn_f32_igemm_ukernel_4x4__rvv_u1v(
-    size_t mr,
-    size_t nc,
-    size_t kc,
-    size_t ks,
-    const float** restrict a,
-    const float* restrict w,
-    float* restrict c,
-    size_t cm_stride,
-    size_t cn_stride,
-    size_t a_offset,const float* zero,
-    const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
-{
-    assert(mr != 0);
-    assert(mr <= 4);
-    assert(nc != 0);
-    assert(kc != 0);
-    assert(kc % sizeof(float) == 0);
-    assert(ks != 0);
-    assert(ks % (4 * sizeof(void*)) == 0);
-    assert(a_offset % sizeof(float) == 0);
-    assert(a != NULL);
-    assert(w != NULL);
-    assert(c != NULL);
 
-    float* c0 = c;
-    float* c1 = (float*) ((uintptr_t) c0 + cm_stride);
-    if XNN_UNPREDICTABLE(mr < 2) {
-        c1 = c0;
-    }
-    float* c2 = (float*) ((uintptr_t) c1 + cm_stride);
-    if XNN_UNPREDICTABLE(mr <= 2) {
-        c2 = c1;
-    }
-    float* c3 = (float*) ((uintptr_t) c2 + cm_stride);
-    if XNN_UNPREDICTABLE(mr != 4) {
-        c3 = c2;
-    }
-
-    do {
-        size_t vl = vsetvl_e32m1(nc); // vector length
-        vfloat32m1_t vacc0 = vle32_v_f32m1(w, 4); // 1st row count
-        vfloat32m1_t vacc1 = vle32_v_f32m1(w, 4); // 1st row count
-        vfloat32m1_t vacc2 = vle32_v_f32m1(w, 4); // 1st row count
-        vfloat32m1_t vacc3 = vle32_v_f32m1(w, 4); // 1st row count
-        w += 4;
-
-        size_t p = ks;
-        size_t kcl = kc / sizeof(float);
-        do {
-            const float* restrict a0 = a[0];
-            assert(a0 != NULL);
-            if XNN_UNPREDICTABLE(a0 != zero) {
-                a0 = (const float*) ((uintptr_t) a0 + a_offset);
-            }
-            const float* restrict a1 = a[1];
-            assert(a1 != NULL);
-            if XNN_UNPREDICTABLE(a1 != zero) {
-                a1 = (const float*) ((uintptr_t) a1 + a_offset);
-            }
-            const float* restrict a2 = a[2];
-            assert(a2 != NULL);
-            if XNN_UNPREDICTABLE(a2 != zero) {
-                a2 = (const float*) ((uintptr_t) a2 + a_offset);
-            }
-            const float* restrict a3 = a[3];
-            assert(a3 != NULL);
-            if XNN_UNPREDICTABLE(a3 != zero) {
-                a3 = (const float*) ((uintptr_t) a3 + a_offset);
-            }
-            a += 4;
-
-            size_t k = kc;
-            for(size_t k = 0; k < kcl ; k++){
-                vfloat32m1_t vw = vle32_v_f32m1(w, 4);
-                w += 4;
-                vacc0 = vfmacc_vf_f32m1(vacc0, *a0, vw, 4); // update 1st row count
-                vacc1 = vfmacc_vf_f32m1(vacc1, *a1, vw, 4); // update 1st row count
-                vacc2 = vfmacc_vf_f32m1(vacc2, *a2, vw, 4); // update 1st row count
-                vacc3 = vfmacc_vf_f32m1(vacc3, *a3, vw, 4); // update 1st row count
-                a0++;
-                a1++;
-                a2++;
-                a3++;
-            }
-            p -= 4 * sizeof(void*);
-        } while (p != 0);
-        vse32_v_f32m1(c0, vacc0, vl); // store 1st row result
-        vse32_v_f32m1(c1, vacc1, vl); // store 1st row result
-        vse32_v_f32m1(c2, vacc2, vl); // store 1st row result
-        vse32_v_f32m1(c3, vacc3, vl); // store 1st row result
-
-        if XNN_LIKELY(nc >= 4) {
-            c3 = (float*) ((uintptr_t) c3 + cn_stride);
-            c2 = (float*) ((uintptr_t) c2 + cn_stride);
-            c1 = (float*) ((uintptr_t) c1 + cn_stride);
-            c0 = (float*) ((uintptr_t) c0 + cn_stride);
-
-            a = (const float**restrict) ((uintptr_t) a - ks);
-        }
-        nc -= vl;
-    } while (nc != 0);
-}
 
 //void xnn_x32_packw_gemm_goi_ukernel_x8__rvv_float_u4(
 //        size_t g,
@@ -1121,67 +1389,67 @@ void xnn_f32_igemm_ukernel_4x4__rvv_u1v(
 //}
 
 extern XNN_INTERNAL const uint32_t xnn_table_exp2minus_k_over_64[64];
-void xnn_f32_vsigmoid_ukernel__rvv_u2v(
-        size_t batch,
-        const float* input,
-        float* output,
-        const union xnn_f32_sigmoid_params params[restrict XNN_MIN_ELEMENTS(1)])
-{
-    assert(batch != 0);
-    assert(batch % sizeof(float) == 0);
-    assert(input != NULL);
-    assert(output != NULL);
+// void xnn_f32_vsigmoid_ukernel__rvv_u2v(
+//         size_t batch,
+//         const float* input,
+//         float* output,
+//         const union xnn_f32_sigmoid_params params[restrict XNN_MIN_ELEMENTS(1)])
+// {
+//     assert(batch != 0);
+//     assert(batch % sizeof(float) == 0);
+//     assert(input != NULL);
+//     assert(output != NULL);
 
-    const float vmagic_bias = params->scalar_rr2_lut64_p2.magic_bias;
-    const float vminus_log2e = params->scalar_rr2_lut64_p2.minus_log2e;
-    const uint32_t vindex_mask = UINT32_C(0x3F);
-    const float vln2_hi = params->scalar_rr2_lut64_p2.ln2_hi;
-    const float vln2_lo = params->scalar_rr2_lut64_p2.ln2_lo;
-    const float vc2 = params->scalar_rr2_lut64_p2.c2;
-    const float vone = params->scalar_rr2_lut64_p2.one;
-    const float vdenorm_cutoff = params->scalar_rr2_lut64_p2.denorm_cutoff;
+//     const float vmagic_bias = params->scalar_rr2_lut64_p2.magic_bias;
+//     const float vminus_log2e = params->scalar_rr2_lut64_p2.minus_log2e;
+//     const uint32_t vindex_mask = UINT32_C(0x3F);
+//     const float vln2_hi = params->scalar_rr2_lut64_p2.ln2_hi;
+//     const float vln2_lo = params->scalar_rr2_lut64_p2.ln2_lo;
+//     const float vc2 = params->scalar_rr2_lut64_p2.c2;
+//     const float vone = params->scalar_rr2_lut64_p2.one;
+//     const float vdenorm_cutoff = params->scalar_rr2_lut64_p2.denorm_cutoff;
 
-    size_t size = batch / sizeof(float);
-    do {
-        const size_t vl = vsetvl_e32m2(size);
-        vfloat32m2_t vx = vle32_v_f32m2(input, vl);
-        input += vl;
-        // get abs
-        vfloat32m2_t vz = vfabs_v_f32m2(vx, vl);
-        // vz*(-log2(e))+magic_bias
-        vfloat32m2_t vn = vfadd_vf_f32m2(vfmul_vf_f32m2(vz, vminus_log2e, vl), vmagic_bias, vl);
-        // get exponent
-        vuint32m2_t ve = vsll_vx_u32m2(vreinterpret_v_f32m2_u32m2(vn), 17, vl);
-        // find index in lookup table using mask
-        vuint32m2_t vidx = vand_vx_u32m2(vreinterpret_v_f32m2_u32m2(vn), vindex_mask, vl);
-        vfloat32m2_t vs = vreinterpret_v_u32m2_f32m2(vadd_vv_u32m2(vloxei32_v_u32m2(xnn_table_exp2minus_k_over_64, vmul_vx_u32m2(vidx, 4, vl), vl), ve, vl));
-        // remove magic bias
-        vn = vfsub_vf_f32m2(vn, vmagic_bias, vl);
-        // find logarithm
-        vfloat32m2_t vt = vfadd_vv_f32m2(vfmul_vf_f32m2(vn, vln2_hi, vl), vz, vl);
-        vt = vfmacc_vf_f32m2(vt, vln2_lo, vn, vl);
-        // calculate the quadratic term logarithmically.
-        vfloat32m2_t vp = vfmul_vf_f32m2(vt, vc2, vl);
-        vp = vfsub_vv_f32m2(vt, vfmul_vv_f32m2(vp, vt, vl), vl);
-        // caculate sigmoid polynomial approximation
-        vfloat32m2_t vy = vfsub_vv_f32m2(vs, vfmul_vv_f32m2(vs, vp, vl), vl);
-        vfloat32m2_t vd = vfadd_vf_f32m2(vy, vone, vl);
-        vfloat32m2_t vf = vfdiv_vv_f32m2(vy, vd, vl);
+//     size_t size = batch / sizeof(float);
+//     do {
+//         const size_t vl = vsetvl_e32m2(size);
+//         vfloat32m2_t vx = vle32_v_f32m2(input, vl);
+//         input += vl;
+//         // get abs
+//         vfloat32m2_t vz = vfabs_v_f32m2(vx, vl);
+//         // vz*(-log2(e))+magic_bias
+//         vfloat32m2_t vn = vfadd_vf_f32m2(vfmul_vf_f32m2(vz, vminus_log2e, vl), vmagic_bias, vl);
+//         // get exponent
+//         vuint32m2_t ve = vsll_vx_u32m2(vreinterpret_v_f32m2_u32m2(vn), 17, vl);
+//         // find index in lookup table using mask
+//         vuint32m2_t vidx = vand_vx_u32m2(vreinterpret_v_f32m2_u32m2(vn), vindex_mask, vl);
+//         vfloat32m2_t vs = vreinterpret_v_u32m2_f32m2(vadd_vv_u32m2(vloxei32_v_u32m2(xnn_table_exp2minus_k_over_64, vmul_vx_u32m2(vidx, 4, vl), vl), ve, vl));
+//         // remove magic bias
+//         vn = vfsub_vf_f32m2(vn, vmagic_bias, vl);
+//         // find logarithm
+//         vfloat32m2_t vt = vfadd_vv_f32m2(vfmul_vf_f32m2(vn, vln2_hi, vl), vz, vl);
+//         vt = vfmacc_vf_f32m2(vt, vln2_lo, vn, vl);
+//         // calculate the quadratic term logarithmically.
+//         vfloat32m2_t vp = vfmul_vf_f32m2(vt, vc2, vl);
+//         vp = vfsub_vv_f32m2(vt, vfmul_vv_f32m2(vp, vt, vl), vl);
+//         // caculate sigmoid polynomial approximation
+//         vfloat32m2_t vy = vfsub_vv_f32m2(vs, vfmul_vv_f32m2(vs, vp, vl), vl);
+//         vfloat32m2_t vd = vfadd_vf_f32m2(vy, vone, vl);
+//         vfloat32m2_t vf = vfdiv_vv_f32m2(vy, vd, vl);
 
-        vbool16_t mask = vmfgt_vf_f32m2_b16 (vz, vdenorm_cutoff, vl);
-        vf = vfmerge_vfm_f32m2(mask, vf, 0.0f, vl);
+//         vbool16_t mask = vmfgt_vf_f32m2_b16 (vz, vdenorm_cutoff, vl);
+//         vf = vfmerge_vfm_f32m2(mask, vf, 0.0f, vl);
 
-        mask = vmfgt_vf_f32m2_b16 (vx, 0.0f, vl);
-        vf = vfmul_vf_f32m2_m(mask, vf, vf, -1.0f, vl);
-        vf = vfadd_vf_f32m2_m(mask, vf, vf, vone, vl);
+//         mask = vmfgt_vf_f32m2_b16 (vx, 0.0f, vl);
+//         vf = vfmul_vf_f32m2_m(mask, vf, vf, -1.0f, vl);
+//         vf = vfadd_vf_f32m2_m(mask, vf, vf, vone, vl);
 
-        // store result
-        vse32_v_f32m2(output, vf, vl);
+//         // store result
+//         vse32_v_f32m2(output, vf, vl);
 
-        output += vl;
-        size -= vl;
-    } while (size > 0);
-}
+//         output += vl;
+//         size -= vl;
+//     } while (size > 0);
+// }
 
 void xnn_f32_vsigmoid_ukernel__thead_u2v(
         size_t batch,
@@ -1207,6 +1475,99 @@ void xnn_f32_vsigmoid_ukernel__thead_u2v(
         _output_data = vfadd_vf_f32m2(_output_data, 1.0f, vl);
         _output_data = vfrdiv_vf_f32m2(_output_data, 1.0f, vl);
         vse32_v_f32m2(output_data, _output_data, vl);
+
+        input_data += vl;
+        output_data += vl;
+        size -= vl;
+    }
+}
+
+void xnn_f32_vsigmoid_ukernel__thead_u1v(
+        size_t batch,
+        const float* input,
+        float* output,
+        const union xnn_f32_sigmoid_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input != NULL);
+    assert(output != NULL);
+
+    float *input_data = input;
+    float *output_data = output;
+
+    size_t size = batch / sizeof(float);
+    while (size > 0) {
+        size_t vl = vsetvl_e32m1(size);
+
+        vfloat32m1_t _val = vle32_v_f32m1(input_data, vl);  // val
+        _val = vfmul_vf_f32m1(_val, -1.0f, vl);
+        vfloat32m1_t _output_data = exp_ps_vfloat32m1(_val, vl);
+        _output_data = vfadd_vf_f32m1(_output_data, 1.0f, vl);
+        _output_data = vfrdiv_vf_f32m1(_output_data, 1.0f, vl);
+        vse32_v_f32m1(output_data, _output_data, vl);
+
+        input_data += vl;
+        output_data += vl;
+        size -= vl;
+    }
+}
+
+void xnn_f32_vsigmoid_ukernel__thead_u4v(
+        size_t batch,
+        const float* input,
+        float* output,
+        const union xnn_f32_sigmoid_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input != NULL);
+    assert(output != NULL);
+
+    float *input_data = input;
+    float *output_data = output;
+
+    size_t size = batch / sizeof(float);
+    while (size > 0) {
+        size_t vl = vsetvl_e32m4(size);
+
+        vfloat32m4_t _val = vle32_v_f32m4(input_data, vl);  // val
+        _val = vfmul_vf_f32m4(_val, -1.0f, vl);
+        vfloat32m4_t _output_data = exp_ps_vfloat32m4(_val, vl);
+        _output_data = vfadd_vf_f32m4(_output_data, 1.0f, vl);
+        _output_data = vfrdiv_vf_f32m4(_output_data, 1.0f, vl);
+        vse32_v_f32m4(output_data, _output_data, vl);
+
+        input_data += vl;
+        output_data += vl;
+        size -= vl;
+    }
+}
+
+void xnn_f32_vsigmoid_ukernel__thead_u8v(
+        size_t batch,
+        const float* input,
+        float* output,
+        const union xnn_f32_sigmoid_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input != NULL);
+    assert(output != NULL);
+
+    float *input_data = input;
+    float *output_data = output;
+
+    size_t size = batch / sizeof(float);
+    while (size > 0) {
+        size_t vl = vsetvl_e32m8(size);
+
+        vfloat32m8_t _val = vle32_v_f32m8(input_data, vl);  // val
+        _val = vfmul_vf_f32m8(_val, -1.0f, vl);
+        vfloat32m8_t _output_data = exp_ps_vfloat32m8(_val, vl);
+        _output_data = vfadd_vf_f32m8(_output_data, 1.0f, vl);
+        _output_data = vfrdiv_vf_f32m8(_output_data, 1.0f, vl);
+        vse32_v_f32m8(output_data, _output_data, vl);
 
         input_data += vl;
         output_data += vl;
@@ -1774,6 +2135,1495 @@ void xnn_f32_vrsubc_minmax_ukernel__rvv_u2v(
     } while (size > 0);
 }
 
+
+
+
+
+
+
+// u1v
+
+//向量除法
+void xnn_f32_vdiv_minmax_ukernel__rvv_u1v(
+        size_t batch,
+        const float* input_a,
+        const float* input_b,
+        float* output,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input_a != NULL);
+    assert(input_b != NULL);
+    assert(output != NULL);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m1(size);
+
+        // 加载输入向量
+        vfloat32m1_t va = vle32_v_f32m1(input_a, vl);
+        vfloat32m1_t vb = vle32_v_f32m1(input_b, vl);
+        input_a += vl;
+        input_b += vl;
+
+        // 执行向量除法
+        vfloat32m1_t vacc = vfdiv_vv_f32m1(va, vb, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m1(vacc, voutput_min, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m1(vacc, voutput_max, vl);
+
+        // 存储结果
+        vse32_v_f32m1(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+//向量加法
+void xnn_f32_vadd_minmax_ukernel__rvv_u1v(
+        size_t batch,
+        const float* input_a,
+        const float* input_b,
+        float* output,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input_a != NULL);
+    assert(input_b != NULL);
+    assert(output != NULL);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m1(size);
+
+        // 加载输入向量
+        vfloat32m1_t va = vle32_v_f32m1(input_a, vl);
+        vfloat32m1_t vb = vle32_v_f32m1(input_b, vl);
+        input_a += vl;
+        input_b += vl;
+
+        // 执行向量加法
+        vfloat32m1_t vacc = vfadd_vv_f32m1(va, vb, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m1(vacc, voutput_min, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m1(vacc, voutput_max, vl);
+
+        // 存储结果
+        vse32_v_f32m1(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+//向量减法
+void xnn_f32_vsub_minmax_ukernel__rvv_u1v(
+        size_t batch,
+        const float* input_a,
+        const float* input_b,
+        float* output,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input_a != NULL);
+    assert(input_b != NULL);
+    assert(output != NULL);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m1(size);
+
+        // 加载输入向量
+        vfloat32m1_t va = vle32_v_f32m1(input_a, vl);
+        vfloat32m1_t vb = vle32_v_f32m1(input_b, vl);
+        input_a += vl;
+        input_b += vl;
+
+        // 执行向量减法
+        vfloat32m1_t vacc = vfsub_vv_f32m1(va, vb, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m1(vacc, voutput_min, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m1(vacc, voutput_max, vl);
+
+        // 存储结果
+        vse32_v_f32m1(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+//向量乘法
+void xnn_f32_vmul_minmax_ukernel__rvv_u1v(
+        size_t batch,
+        const float* input_a,
+        const float* input_b,
+        float* output,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input_a != NULL);
+    assert(input_b != NULL);
+    assert(output != NULL);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m1(size);
+
+        // 加载输入向量
+        vfloat32m1_t va = vle32_v_f32m1(input_a, vl);
+        vfloat32m1_t vb = vle32_v_f32m1(input_b, vl);
+        input_a += vl;
+        input_b += vl;
+
+        // 执行向量乘法
+        vfloat32m1_t vacc = vfmul_vv_f32m1(va, vb, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m1(vacc, voutput_min, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m1(vacc, voutput_max, vl);
+
+        // 存储结果
+        vse32_v_f32m1(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+//向量除法
+void xnn_f32_vdivc_minmax_ukernel__rvv_u1v(
+        size_t batch,
+        const float* input_a,
+        const float* input_b,
+        float* output,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input_a != NULL);
+    assert(input_b != NULL);
+    assert(output != NULL);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+    const float vb = *input_b;
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m1(size);
+
+        // 加载输入向量
+        vfloat32m1_t va = vle32_v_f32m1(input_a, vl);
+        input_a += vl;
+
+        // 执行向量除法
+        vfloat32m1_t vacc = vfdiv_vf_f32m1(va, vb, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m1(vacc, voutput_min, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m1(vacc, voutput_max, vl);
+
+        // 存储结果
+        vse32_v_f32m1(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+//向量加法
+void xnn_f32_vaddc_minmax_ukernel__rvv_u1v(
+        size_t batch,
+        const float* input_a,
+        const float* input_b,
+        float* output,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input_a != NULL);
+    assert(input_b != NULL);
+    assert(output != NULL);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+    const float vb = *input_b;
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m1(size);
+
+        // 加载输入向量
+        vfloat32m1_t va = vle32_v_f32m1(input_a, vl);
+        input_a += vl;
+
+        // 执行向量加法
+        vfloat32m1_t vacc = vfadd_vf_f32m1(va, vb, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m1(vacc, voutput_min, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m1(vacc, voutput_max, vl);
+
+        // 存储结果
+        vse32_v_f32m1(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+//向量减法
+void xnn_f32_vsubc_minmax_ukernel__rvv_u1v(
+        size_t batch,
+        const float* input_a,
+        const float* input_b,
+        float* output,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input_a != NULL);
+    assert(input_b != NULL);
+    assert(output != NULL);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+    const float vb = *input_b;
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m1(size);
+
+        // 加载输入向量
+        vfloat32m1_t va = vle32_v_f32m1(input_a, vl);
+        input_a += vl;
+
+        // 执行向量减法
+        vfloat32m1_t vacc = vfsub_vf_f32m1(va, vb, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m1(vacc, voutput_min, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m1(vacc, voutput_max, vl);
+
+        // 存储结果
+        vse32_v_f32m1(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+//向量乘法
+void xnn_f32_vmulc_minmax_ukernel__rvv_u1v(
+        size_t batch,
+        const float* input_a,
+        const float* input_b,
+        float* output,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input_a != NULL);
+    assert(input_b != NULL);
+    assert(output != NULL);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+    const float vb = *input_b;
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m1(size);
+
+        // 加载输入向量
+        vfloat32m1_t va = vle32_v_f32m1(input_a, vl);
+        input_a += vl;
+
+        // 执行向量乘法
+        vfloat32m1_t vacc = vfmul_vf_f32m1(va, vb, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m1(vacc, voutput_min, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m1(vacc, voutput_max, vl);
+
+        // 存储结果
+        vse32_v_f32m1(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+//向量除法
+void xnn_f32_vrdivc_minmax_ukernel__rvv_u1v(
+        size_t batch,
+        const float* input_a,
+        const float* input_b,
+        float* output,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input_a != NULL);
+    assert(input_b != NULL);
+    assert(output != NULL);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+    const float vb = *input_b;
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m1(size);
+
+        // 加载输入向量
+        vfloat32m1_t va = vle32_v_f32m1(input_a, vl);
+        input_a += vl;
+
+        // 执行向量除法
+        vfloat32m1_t vacc = vfrdiv_vf_f32m1(va, vb, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m1(vacc, voutput_min, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m1(vacc, voutput_max, vl);
+
+        // 存储结果
+        vse32_v_f32m1(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+//向量减法
+void xnn_f32_vrsubc_minmax_ukernel__rvv_u1v(
+        size_t batch,
+        const float* input_a,
+        const float* input_b,
+        float* output,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input_a != NULL);
+    assert(input_b != NULL);
+    assert(output != NULL);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+    const float vb = *input_b;
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m1(size);
+
+        // 加载输入向量
+        vfloat32m1_t va = vle32_v_f32m1(input_a, vl);
+        input_a += vl;
+
+        // 执行向量减法
+        vfloat32m1_t vacc = vfrsub_vf_f32m1(va, vb, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m1(vacc, voutput_min, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m1(vacc, voutput_max, vl);
+
+        // 存储结果
+        vse32_v_f32m1(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+
+
+// u4v
+
+//向量除法
+void xnn_f32_vdiv_minmax_ukernel__rvv_u4v(
+        size_t batch,
+        const float* input_a,
+        const float* input_b,
+        float* output,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input_a != NULL);
+    assert(input_b != NULL);
+    assert(output != NULL);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m4(size);
+
+        // 加载输入向量
+        vfloat32m4_t va = vle32_v_f32m4(input_a, vl);
+        vfloat32m4_t vb = vle32_v_f32m4(input_b, vl);
+        input_a += vl;
+        input_b += vl;
+
+        // 执行向量除法
+        vfloat32m4_t vacc = vfdiv_vv_f32m4(va, vb, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m4(vacc, voutput_min, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m4(vacc, voutput_max, vl);
+
+        // 存储结果
+        vse32_v_f32m4(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+//向量加法
+void xnn_f32_vadd_minmax_ukernel__rvv_u4v(
+        size_t batch,
+        const float* input_a,
+        const float* input_b,
+        float* output,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input_a != NULL);
+    assert(input_b != NULL);
+    assert(output != NULL);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m4(size);
+
+        // 加载输入向量
+        vfloat32m4_t va = vle32_v_f32m4(input_a, vl);
+        vfloat32m4_t vb = vle32_v_f32m4(input_b, vl);
+        input_a += vl;
+        input_b += vl;
+
+        // 执行向量加法
+        vfloat32m4_t vacc = vfadd_vv_f32m4(va, vb, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m4(vacc, voutput_min, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m4(vacc, voutput_max, vl);
+
+        // 存储结果
+        vse32_v_f32m4(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+//向量减法
+void xnn_f32_vsub_minmax_ukernel__rvv_u4v(
+        size_t batch,
+        const float* input_a,
+        const float* input_b,
+        float* output,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input_a != NULL);
+    assert(input_b != NULL);
+    assert(output != NULL);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m4(size);
+
+        // 加载输入向量
+        vfloat32m4_t va = vle32_v_f32m4(input_a, vl);
+        vfloat32m4_t vb = vle32_v_f32m4(input_b, vl);
+        input_a += vl;
+        input_b += vl;
+
+        // 执行向量减法
+        vfloat32m4_t vacc = vfsub_vv_f32m4(va, vb, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m4(vacc, voutput_min, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m4(vacc, voutput_max, vl);
+
+        // 存储结果
+        vse32_v_f32m4(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+//向量乘法
+void xnn_f32_vmul_minmax_ukernel__rvv_u4v(
+        size_t batch,
+        const float* input_a,
+        const float* input_b,
+        float* output,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input_a != NULL);
+    assert(input_b != NULL);
+    assert(output != NULL);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m4(size);
+
+        // 加载输入向量
+        vfloat32m4_t va = vle32_v_f32m4(input_a, vl);
+        vfloat32m4_t vb = vle32_v_f32m4(input_b, vl);
+        input_a += vl;
+        input_b += vl;
+
+        // 执行向量乘法
+        vfloat32m4_t vacc = vfmul_vv_f32m4(va, vb, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m4(vacc, voutput_min, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m4(vacc, voutput_max, vl);
+
+        // 存储结果
+        vse32_v_f32m4(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+//向量除法
+void xnn_f32_vdivc_minmax_ukernel__rvv_u4v(
+        size_t batch,
+        const float* input_a,
+        const float* input_b,
+        float* output,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input_a != NULL);
+    assert(input_b != NULL);
+    assert(output != NULL);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+    const float vb = *input_b;
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m4(size);
+
+        // 加载输入向量
+        vfloat32m4_t va = vle32_v_f32m4(input_a, vl);
+        input_a += vl;
+
+        // 执行向量除法
+        vfloat32m4_t vacc = vfdiv_vf_f32m4(va, vb, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m4(vacc, voutput_min, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m4(vacc, voutput_max, vl);
+
+        // 存储结果
+        vse32_v_f32m4(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+//向量加法
+void xnn_f32_vaddc_minmax_ukernel__rvv_u4v(
+        size_t batch,
+        const float* input_a,
+        const float* input_b,
+        float* output,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input_a != NULL);
+    assert(input_b != NULL);
+    assert(output != NULL);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+    const float vb = *input_b;
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m4(size);
+
+        // 加载输入向量
+        vfloat32m4_t va = vle32_v_f32m4(input_a, vl);
+        input_a += vl;
+
+        // 执行向量加法
+        vfloat32m4_t vacc = vfadd_vf_f32m4(va, vb, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m4(vacc, voutput_min, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m4(vacc, voutput_max, vl);
+
+        // 存储结果
+        vse32_v_f32m4(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+//向量减法
+void xnn_f32_vsubc_minmax_ukernel__rvv_u4v(
+        size_t batch,
+        const float* input_a,
+        const float* input_b,
+        float* output,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input_a != NULL);
+    assert(input_b != NULL);
+    assert(output != NULL);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+    const float vb = *input_b;
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m4(size);
+
+        // 加载输入向量
+        vfloat32m4_t va = vle32_v_f32m4(input_a, vl);
+        input_a += vl;
+
+        // 执行向量减法
+        vfloat32m4_t vacc = vfsub_vf_f32m4(va, vb, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m4(vacc, voutput_min, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m4(vacc, voutput_max, vl);
+
+        // 存储结果
+        vse32_v_f32m4(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+//向量乘法
+void xnn_f32_vmulc_minmax_ukernel__rvv_u4v(
+        size_t batch,
+        const float* input_a,
+        const float* input_b,
+        float* output,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input_a != NULL);
+    assert(input_b != NULL);
+    assert(output != NULL);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+    const float vb = *input_b;
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m4(size);
+
+        // 加载输入向量
+        vfloat32m4_t va = vle32_v_f32m4(input_a, vl);
+        input_a += vl;
+
+        // 执行向量乘法
+        vfloat32m4_t vacc = vfmul_vf_f32m4(va, vb, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m4(vacc, voutput_min, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m4(vacc, voutput_max, vl);
+
+        // 存储结果
+        vse32_v_f32m4(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+//向量除法
+void xnn_f32_vrdivc_minmax_ukernel__rvv_u4v(
+        size_t batch,
+        const float* input_a,
+        const float* input_b,
+        float* output,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input_a != NULL);
+    assert(input_b != NULL);
+    assert(output != NULL);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+    const float vb = *input_b;
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m4(size);
+
+        // 加载输入向量
+        vfloat32m4_t va = vle32_v_f32m4(input_a, vl);
+        input_a += vl;
+
+        // 执行向量除法
+        vfloat32m4_t vacc = vfrdiv_vf_f32m4(va, vb, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m4(vacc, voutput_min, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m4(vacc, voutput_max, vl);
+
+        // 存储结果
+        vse32_v_f32m4(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+//向量减法
+void xnn_f32_vrsubc_minmax_ukernel__rvv_u4v(
+        size_t batch,
+        const float* input_a,
+        const float* input_b,
+        float* output,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input_a != NULL);
+    assert(input_b != NULL);
+    assert(output != NULL);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+    const float vb = *input_b;
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m4(size);
+
+        // 加载输入向量
+        vfloat32m4_t va = vle32_v_f32m4(input_a, vl);
+        input_a += vl;
+
+        // 执行向量减法
+        vfloat32m4_t vacc = vfrsub_vf_f32m4(va, vb, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m4(vacc, voutput_min, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m4(vacc, voutput_max, vl);
+
+        // 存储结果
+        vse32_v_f32m4(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+
+
+// u8v
+
+//向量除法
+void xnn_f32_vdiv_minmax_ukernel__rvv_u8v(
+        size_t batch,
+        const float* input_a,
+        const float* input_b,
+        float* output,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input_a != NULL);
+    assert(input_b != NULL);
+    assert(output != NULL);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m8(size);
+
+        // 加载输入向量
+        vfloat32m8_t va = vle32_v_f32m8(input_a, vl);
+        vfloat32m8_t vb = vle32_v_f32m8(input_b, vl);
+        input_a += vl;
+        input_b += vl;
+
+        // 执行向量除法
+        vfloat32m8_t vacc = vfdiv_vv_f32m8(va, vb, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m8(vacc, voutput_min, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m8(vacc, voutput_max, vl);
+
+        // 存储结果
+        vse32_v_f32m8(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+//向量加法
+void xnn_f32_vadd_minmax_ukernel__rvv_u8v(
+        size_t batch,
+        const float* input_a,
+        const float* input_b,
+        float* output,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input_a != NULL);
+    assert(input_b != NULL);
+    assert(output != NULL);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m8(size);
+
+        // 加载输入向量
+        vfloat32m8_t va = vle32_v_f32m8(input_a, vl);
+        vfloat32m8_t vb = vle32_v_f32m8(input_b, vl);
+        input_a += vl;
+        input_b += vl;
+
+        // 执行向量加法
+        vfloat32m8_t vacc = vfadd_vv_f32m8(va, vb, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m8(vacc, voutput_min, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m8(vacc, voutput_max, vl);
+
+        // 存储结果
+        vse32_v_f32m8(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+//向量减法
+void xnn_f32_vsub_minmax_ukernel__rvv_u8v(
+        size_t batch,
+        const float* input_a,
+        const float* input_b,
+        float* output,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input_a != NULL);
+    assert(input_b != NULL);
+    assert(output != NULL);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m8(size);
+
+        // 加载输入向量
+        vfloat32m8_t va = vle32_v_f32m8(input_a, vl);
+        vfloat32m8_t vb = vle32_v_f32m8(input_b, vl);
+        input_a += vl;
+        input_b += vl;
+
+        // 执行向量减法
+        vfloat32m8_t vacc = vfsub_vv_f32m8(va, vb, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m8(vacc, voutput_min, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m8(vacc, voutput_max, vl);
+
+        // 存储结果
+        vse32_v_f32m8(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+//向量乘法
+void xnn_f32_vmul_minmax_ukernel__rvv_u8v(
+        size_t batch,
+        const float* input_a,
+        const float* input_b,
+        float* output,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input_a != NULL);
+    assert(input_b != NULL);
+    assert(output != NULL);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m8(size);
+
+        // 加载输入向量
+        vfloat32m8_t va = vle32_v_f32m8(input_a, vl);
+        vfloat32m8_t vb = vle32_v_f32m8(input_b, vl);
+        input_a += vl;
+        input_b += vl;
+
+        // 执行向量乘法
+        vfloat32m8_t vacc = vfmul_vv_f32m8(va, vb, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m8(vacc, voutput_min, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m8(vacc, voutput_max, vl);
+
+        // 存储结果
+        vse32_v_f32m8(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+//向量除法
+void xnn_f32_vdivc_minmax_ukernel__rvv_u8v(
+        size_t batch,
+        const float* input_a,
+        const float* input_b,
+        float* output,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input_a != NULL);
+    assert(input_b != NULL);
+    assert(output != NULL);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+    const float vb = *input_b;
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m8(size);
+
+        // 加载输入向量
+        vfloat32m8_t va = vle32_v_f32m8(input_a, vl);
+        input_a += vl;
+
+        // 执行向量除法
+        vfloat32m8_t vacc = vfdiv_vf_f32m8(va, vb, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m8(vacc, voutput_min, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m8(vacc, voutput_max, vl);
+
+        // 存储结果
+        vse32_v_f32m8(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+//向量加法
+void xnn_f32_vaddc_minmax_ukernel__rvv_u8v(
+        size_t batch,
+        const float* input_a,
+        const float* input_b,
+        float* output,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input_a != NULL);
+    assert(input_b != NULL);
+    assert(output != NULL);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+    const float vb = *input_b;
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m8(size);
+
+        // 加载输入向量
+        vfloat32m8_t va = vle32_v_f32m8(input_a, vl);
+        input_a += vl;
+
+        // 执行向量加法
+        vfloat32m8_t vacc = vfadd_vf_f32m8(va, vb, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m8(vacc, voutput_min, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m8(vacc, voutput_max, vl);
+
+        // 存储结果
+        vse32_v_f32m8(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+//向量减法
+void xnn_f32_vsubc_minmax_ukernel__rvv_u8v(
+        size_t batch,
+        const float* input_a,
+        const float* input_b,
+        float* output,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input_a != NULL);
+    assert(input_b != NULL);
+    assert(output != NULL);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+    const float vb = *input_b;
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m8(size);
+
+        // 加载输入向量
+        vfloat32m8_t va = vle32_v_f32m8(input_a, vl);
+        input_a += vl;
+
+        // 执行向量减法
+        vfloat32m8_t vacc = vfsub_vf_f32m8(va, vb, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m8(vacc, voutput_min, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m8(vacc, voutput_max, vl);
+
+        // 存储结果
+        vse32_v_f32m8(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+//向量乘法
+void xnn_f32_vmulc_minmax_ukernel__rvv_u8v(
+        size_t batch,
+        const float* input_a,
+        const float* input_b,
+        float* output,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input_a != NULL);
+    assert(input_b != NULL);
+    assert(output != NULL);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+    const float vb = *input_b;
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m8(size);
+
+        // 加载输入向量
+        vfloat32m8_t va = vle32_v_f32m8(input_a, vl);
+        input_a += vl;
+
+        // 执行向量乘法
+        vfloat32m8_t vacc = vfmul_vf_f32m8(va, vb, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m8(vacc, voutput_min, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m8(vacc, voutput_max, vl);
+
+        // 存储结果
+        vse32_v_f32m8(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+//向量除法
+void xnn_f32_vrdivc_minmax_ukernel__rvv_u8v(
+        size_t batch,
+        const float* input_a,
+        const float* input_b,
+        float* output,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input_a != NULL);
+    assert(input_b != NULL);
+    assert(output != NULL);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+    const float vb = *input_b;
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m8(size);
+
+        // 加载输入向量
+        vfloat32m8_t va = vle32_v_f32m8(input_a, vl);
+        input_a += vl;
+
+        // 执行向量除法
+        vfloat32m8_t vacc = vfrdiv_vf_f32m8(va, vb, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m8(vacc, voutput_min, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m8(vacc, voutput_max, vl);
+
+        // 存储结果
+        vse32_v_f32m8(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+//向量减法
+void xnn_f32_vrsubc_minmax_ukernel__rvv_u8v(
+        size_t batch,
+        const float* input_a,
+        const float* input_b,
+        float* output,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input_a != NULL);
+    assert(input_b != NULL);
+    assert(output != NULL);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+    const float vb = *input_b;
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m8(size);
+
+        // 加载输入向量
+        vfloat32m8_t va = vle32_v_f32m8(input_a, vl);
+        input_a += vl;
+
+        // 执行向量减法
+        vfloat32m8_t vacc = vfrsub_vf_f32m8(va, vb, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m8(vacc, voutput_min, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m8(vacc, voutput_max, vl);
+
+        // 存储结果
+        vse32_v_f32m8(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+
+
+
+
+void xnn_f32_igemm_ukernel_1x4__rvv_u1v(
+    size_t mr,
+    size_t nc,
+    size_t kc,
+    size_t ks,
+    const float** restrict a,
+    const float* restrict w,
+    float* restrict c,
+    size_t cm_stride,
+    size_t cn_stride,
+    size_t a_offset,
+    const float* zero,
+    const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 1);
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(ks != 0);
+    assert(ks % (1 * sizeof(void*)) == 0);
+    assert(a_offset % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    float* c0 = c;
+
+    do {
+        size_t vl = vsetvl_e32m1(nc); // vector length
+        vfloat32m1_t vacc0 = vle32_v_f32m1(w, 4); // 1st row count
+        w += 4;
+
+         size_t p = ks;
+        size_t kcl = kc / sizeof(float);
+        do {
+             const float* restrict a0 = a[0];
+            assert(a0 != NULL);
+            if XNN_UNPREDICTABLE(a0 != zero) {
+                a0 = (const float*) ((uintptr_t) a0 + a_offset);
+            }
+            a += 1;
+
+            size_t k = kc;
+            for(size_t k = 0; k < kcl ; k++){
+                vfloat32m1_t vw = vle32_v_f32m1(w, 4);
+                w += 4;
+                vacc0 = vfmacc_vf_f32m1(vacc0, *a0, vw, 4); // update 1st row count
+                a0++;
+            }
+            p -= 1 * sizeof(void*);
+        } while (p != 0);
+        vse32_v_f32m1(c0, vacc0, vl); // store 1st row result
+
+        if XNN_LIKELY(nc >= 4) {
+            c0 = (float*) ((uintptr_t) c0 + cn_stride);
+            a = (const float**restrict) ((uintptr_t) a - ks);
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+
+void xnn_f32_igemm_ukernel_4x4__rvv_u1v(
+    size_t mr,
+    size_t nc,
+    size_t kc,
+    size_t ks,
+    const float** restrict a,
+    const float* restrict w,
+    float* restrict c,
+    size_t cm_stride,
+    size_t cn_stride,
+    size_t a_offset,const float* zero,
+    const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 4);
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(ks != 0);
+    assert(ks % (4 * sizeof(void*)) == 0);
+    assert(a_offset % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    float* c0 = c;
+    float* c1 = (float*) ((uintptr_t) c0 + cm_stride);
+    if XNN_UNPREDICTABLE(mr < 2) {
+        c1 = c0;
+    }
+    float* c2 = (float*) ((uintptr_t) c1 + cm_stride);
+    if XNN_UNPREDICTABLE(mr <= 2) {
+        c2 = c1;
+    }
+    float* c3 = (float*) ((uintptr_t) c2 + cm_stride);
+    if XNN_UNPREDICTABLE(mr != 4) {
+        c3 = c2;
+    }
+
+    do {
+        size_t vl = vsetvl_e32m1(nc); // vector length
+        vfloat32m1_t vacc0 = vle32_v_f32m1(w, 4); // 1st row count
+        vfloat32m1_t vacc1 = vle32_v_f32m1(w, 4); // 1st row count
+        vfloat32m1_t vacc2 = vle32_v_f32m1(w, 4); // 1st row count
+        vfloat32m1_t vacc3 = vle32_v_f32m1(w, 4); // 1st row count
+        w += 4;
+
+        size_t p = ks;
+        size_t kcl = kc / sizeof(float);
+        do {
+            const float* restrict a0 = a[0];
+            assert(a0 != NULL);
+            if XNN_UNPREDICTABLE(a0 != zero) {
+                a0 = (const float*) ((uintptr_t) a0 + a_offset);
+            }
+            const float* restrict a1 = a[1];
+            assert(a1 != NULL);
+            if XNN_UNPREDICTABLE(a1 != zero) {
+                a1 = (const float*) ((uintptr_t) a1 + a_offset);
+            }
+            const float* restrict a2 = a[2];
+            assert(a2 != NULL);
+            if XNN_UNPREDICTABLE(a2 != zero) {
+                a2 = (const float*) ((uintptr_t) a2 + a_offset);
+            }
+            const float* restrict a3 = a[3];
+            assert(a3 != NULL);
+            if XNN_UNPREDICTABLE(a3 != zero) {
+                a3 = (const float*) ((uintptr_t) a3 + a_offset);
+            }
+            a += 4;
+
+            size_t k = kc;
+            for(size_t k = 0; k < kcl ; k++){
+                vfloat32m1_t vw = vle32_v_f32m1(w, 4);
+                w += 4;
+                vacc0 = vfmacc_vf_f32m1(vacc0, *a0, vw, 4); // update 1st row count
+                vacc1 = vfmacc_vf_f32m1(vacc1, *a1, vw, 4); // update 1st row count
+                vacc2 = vfmacc_vf_f32m1(vacc2, *a2, vw, 4); // update 1st row count
+                vacc3 = vfmacc_vf_f32m1(vacc3, *a3, vw, 4); // update 1st row count
+                a0++;
+                a1++;
+                a2++;
+                a3++;
+            }
+            p -= 4 * sizeof(void*);
+        } while (p != 0);
+        vse32_v_f32m1(c0, vacc0, vl); // store 1st row result
+        vse32_v_f32m1(c1, vacc1, vl); // store 1st row result
+        vse32_v_f32m1(c2, vacc2, vl); // store 1st row result
+        vse32_v_f32m1(c3, vacc3, vl); // store 1st row result
+
+        if XNN_LIKELY(nc >= 4) {
+            c3 = (float*) ((uintptr_t) c3 + cn_stride);
+            c2 = (float*) ((uintptr_t) c2 + cn_stride);
+            c1 = (float*) ((uintptr_t) c1 + cn_stride);
+            c0 = (float*) ((uintptr_t) c0 + cn_stride);
+
+            a = (const float**restrict) ((uintptr_t) a - ks);
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
 void xnn_f32_igemm_ukernel_1x8__rvv_u2v(
         size_t mr,
         size_t nc,
@@ -1942,7 +3792,474 @@ void xnn_f32_igemm_ukernel_4x8__rvv_u2v(
     } while (nc != 0);
 }
 
-void xnn_f32_gemm_ukernel_1x8__rvv_u2v(
+void xnn_f32_igemm_ukernel_1x16__rvv_u2v(
+        size_t mr,
+        size_t nc,
+        size_t kc,
+        size_t ks,
+        const float** restrict a,
+        const float* restrict w,
+        float* restrict c,
+        size_t cm_stride,
+        size_t cn_stride,
+        size_t a_offset,
+        const float* zero,
+        const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 1);
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(ks != 0);
+    assert(ks % (1 * sizeof(void*)) == 0);
+    assert(a_offset % sizeof(float) == 0);
+    assert(a!= NULL);
+    assert(w!= NULL);
+    assert(c!= NULL);
+
+    float* c0 = c;
+
+    do {
+        size_t vl = vsetvl_e32m4(nc); // vector length
+        vfloat32m4_t vacc0 = vle32_v_f32m4(w, 16); // 1st row count
+        w += 16;
+
+        size_t p = ks;
+        size_t kcl = kc / sizeof(float);
+        do {
+            const float* restrict a0 = a[0];
+            assert(a0 != NULL);
+            if XNN_UNPREDICTABLE(a0 != zero) {
+                a0 = (const float*) ((uintptr_t) a0 + a_offset);
+            }
+            a += 1;
+
+            size_t k = kc;
+            for(size_t k = 0; k < kcl ; k++){
+                vfloat32m4_t vw = vle32_v_f32m4(w, 16);
+                w += 16;
+                vacc0 = vfmacc_vf_f32m4(vacc0, *a0, vw, 16); // update 1st row count
+                a0++;
+            }
+            p -= 1 * sizeof(void*);
+        } while (p != 0);
+        vse32_v_f32m4(c0, vacc0, vl); // store 1st row result
+
+        if XNN_LIKELY(nc >= 4) {
+            c0 = (float*) ((uintptr_t) c0 + cn_stride);
+            a = (const float**restrict) ((uintptr_t) a - ks);
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+
+void xnn_f32_igemm_ukernel_4x16__rvv_u4v(
+        size_t mr,
+        size_t nc,
+        size_t kc,
+        size_t ks,
+        const float** restrict a,
+        const float* restrict w,
+        float* restrict c,
+        size_t cm_stride,
+        size_t cn_stride,
+        size_t a_offset,const float* zero,
+        const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 4);
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(ks != 0);
+    assert(ks % (4 * sizeof(void*)) == 0);
+    assert(a_offset % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    float* c0 = c;
+    float* c1 = (float*) ((uintptr_t) c0 + cm_stride);
+    if XNN_UNPREDICTABLE(mr < 2) {
+        c1 = c0;
+    }
+    float* c2 = (float*) ((uintptr_t) c1 + cm_stride);
+    if XNN_UNPREDICTABLE(mr <= 2) {
+        c2 = c1;
+    }
+    float* c3 = (float*) ((uintptr_t) c2 + cm_stride);
+    if XNN_UNPREDICTABLE(mr != 4) {
+        c3 = c2;
+    }
+
+    do {
+        size_t vl = vsetvl_e32m4(nc); // vector length
+        vfloat32m4_t vacc0 = vle32_v_f32m4(w, 16); // 1st row count
+        vfloat32m4_t vacc1 = vle32_v_f32m4(w, 16); // 1st row count
+        vfloat32m4_t vacc2 = vle32_v_f32m4(w, 16); // 1st row count
+        vfloat32m4_t vacc3 = vle32_v_f32m4(w, 16); // 1st row count
+        w += 16;
+
+        size_t p = ks;
+        size_t kcl = kc / sizeof(float);
+        do {
+            const float* restrict a0 = a[0];
+            assert(a0 != NULL);
+            if XNN_UNPREDICTABLE(a0 != zero) {
+                a0 = (const float*) ((uintptr_t) a0 + a_offset);
+            }
+            const float* restrict a1 = a[1];
+            assert(a1 != NULL);
+            if XNN_UNPREDICTABLE(a1 != zero) {
+                a1 = (const float*) ((uintptr_t) a1 + a_offset);
+            }
+            const float* restrict a2 = a[2];
+            assert(a2 != NULL);
+            if XNN_UNPREDICTABLE(a2 != zero) {
+                a2 = (const float*) ((uintptr_t) a2 + a_offset);
+            }
+            const float* restrict a3 = a[3];
+            assert(a3 != NULL);
+            if XNN_UNPREDICTABLE(a3 != zero) {
+                a3 = (const float*) ((uintptr_t) a3 + a_offset);
+            }
+            a += 4;
+
+            size_t k = kc;
+            for(size_t k = 0; k < kcl ; k++){
+                vfloat32m4_t vw = vle32_v_f32m4(w, 16);
+                w += 16;
+                vacc0 = vfmacc_vf_f32m4(vacc0, *a0, vw, 16); // update 1st row count
+                vacc1 = vfmacc_vf_f32m4(vacc1, *a1, vw, 16); // update 1st row count
+                vacc2 = vfmacc_vf_f32m4(vacc2, *a2, vw, 16); // update 1st row count
+                vacc3 = vfmacc_vf_f32m4(vacc3, *a3, vw, 16); // update 1st row count
+                a0++;
+                a1++;
+                a2++;
+                a3++;
+            }
+            p -= 4 * sizeof(void*);
+        } while (p != 0);
+        vse32_v_f32m4(c0, vacc0, vl); // store 1st row result
+        vse32_v_f32m4(c1, vacc1, vl); // store 1st row result
+        vse32_v_f32m4(c2, vacc2, vl); // store 1st row result
+        vse32_v_f32m4(c3, vacc3, vl); // store 1st row result
+
+        if XNN_LIKELY(nc >= 4) {
+            c3 = (float*) ((uintptr_t) c3 + cn_stride);
+            c2 = (float*) ((uintptr_t) c2 + cn_stride);
+            c1 = (float*) ((uintptr_t) c1 + cn_stride);
+            c0 = (float*) ((uintptr_t) c0 + cn_stride);
+
+            a = (const float**restrict) ((uintptr_t) a - ks);
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+void xnn_f32_igemm_ukernel_1x32__rvv_u8v(
+        size_t mr,
+        size_t nc,
+        size_t kc,
+        size_t ks,
+        const float** restrict a,
+        const float* restrict w,
+        float* restrict c,
+        size_t cm_stride,
+        size_t cn_stride,
+        size_t a_offset,
+        const float* zero,
+        const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+     assert(mr != 0);
+    assert(mr <= 1);
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(ks != 0);
+    assert(ks % (1 * sizeof(void*)) == 0);
+    assert(a_offset % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    float* c0 = c;
+
+    do {
+        size_t vl = vsetvl_e32m8(nc); // vector length
+        vfloat32m8_t vacc0 = vle32_v_f32m8(w, 32); // 1st row count
+        w += 32;
+
+        size_t p = ks;
+        size_t kcl = kc / sizeof(float);
+
+        do {
+             const float* restrict a0 = a[0];
+            assert(a0 != NULL);
+            if XNN_UNPREDICTABLE(a0 != zero) {
+                a0 = (const float*) ((uintptr_t) a0 + a_offset);
+            }
+            a += 1;
+
+            size_t k = kc;
+            for(size_t k = 0; k < kcl ; k++){
+                vfloat32m2_t vw = vle32_v_f32m8(w, 32);
+                w += 32;
+                vacc0 = vfmacc_vf_f32m8(vacc0, *a0, vw, 32); // update 1st row count
+                a0++;
+            }
+            p -= 1 * sizeof(void*);
+        } while (p != 0);
+        vse32_v_f32m8(c0, vacc0, vl); // store 1st row result
+
+        if XNN_LIKELY(nc >= 4) {
+            c0 = (float*) ((uintptr_t) c0 + cn_stride);
+            a = (const float**restrict) ((uintptr_t) a - ks);
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+void xnn_f32_igemm_ukernel_4x32__rvv_u8v(
+    size_t mr,
+    size_t nc,
+    size_t kc,
+    size_t ks,
+    const float** restrict a,
+    const float* restrict w,
+    float* restrict c,
+    size_t cm_stride,
+    size_t cn_stride,
+    size_t a_offset,const float* zero,
+    const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 4);
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(ks != 0);
+    assert(ks % (4 * sizeof(void*)) == 0);
+    assert(a_offset % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    float* c0 = c;
+    float* c1 = (float*) ((uintptr_t) c0 + cm_stride);
+    if XNN_UNPREDICTABLE(mr < 2) {
+        c1 = c0;
+    }
+    float* c2 = (float*) ((uintptr_t) c1 + cm_stride);
+    if XNN_UNPREDICTABLE(mr <= 2) {
+        c2 = c1;
+    }
+    float* c3 = (float*) ((uintptr_t) c2 + cm_stride);
+    if XNN_UNPREDICTABLE(mr != 4) {
+        c3 = c2;
+    }
+
+    do {
+        size_t vl = vsetvl_e32m8(nc); // vector length
+        vfloat32m8_t vacc0 = vle32_v_f32m8(w, 32); // 1st row count
+        vfloat32m8_t vacc1 = vle32_v_f32m8(w, 32); // 1st row count
+        vfloat32m8_t vacc2 = vle32_v_f32m8(w, 32); // 1st row count
+        vfloat32m8_t vacc3 = vle32_v_f32m8(w, 32); // 1st row count
+
+        w += 32;
+
+        size_t p = ks;
+        size_t kcl = kc / sizeof(float);
+        do {
+            const float* restrict a0 = a[0];
+            assert(a0 != NULL);
+            if XNN_UNPREDICTABLE(a0 != zero) {
+                a0 = (const float*) ((uintptr_t) a0 + a_offset);
+            }
+            const float* restrict a1 = a[1];
+            assert(a1 != NULL);
+            if XNN_UNPREDICTABLE(a1 != zero) {
+                a1 = (const float*) ((uintptr_t) a1 + a_offset);
+            }
+            const float* restrict a2 = a[2];
+            assert(a2 != NULL);
+            if XNN_UNPREDICTABLE(a2 != zero) {
+                a2 = (const float*) ((uintptr_t) a2 + a_offset);
+            }
+            const float* restrict a3 = a[3];
+            assert(a3 != NULL);
+            if XNN_UNPREDICTABLE(a3 != zero) {
+                a3 = (const float*) ((uintptr_t) a3 + a_offset);
+            }
+            a += 4;
+
+            size_t k = kc;
+            for(size_t k = 0; k < kcl ; k++){
+                vfloat32m8_t vw = vle32_v_f32m8(w, 32);
+                w += 32;
+                vacc0 = vfmacc_vf_f32m8(vacc0, *a0, vw, 32); // update 1st row count
+                vacc1 = vfmacc_vf_f32m8(vacc1, *a1, vw, 32); // update 1st row count
+                vacc2 = vfmacc_vf_f32m8(vacc2, *a2, vw, 32); // update 1st row count
+                vacc3 = vfmacc_vf_f32m8(vacc3, *a3, vw, 32); // update 1st row count
+                a0++;
+                a1++;
+                a2++;
+                a3++;
+            }
+            p -= 4 * sizeof(void*);
+        } while (p != 0);
+        vse32_v_f32m8(c0, vacc0, vl); // store 1st row result
+        vse32_v_f32m8(c1, vacc1, vl); // store 1st row result
+        vse32_v_f32m8(c2, vacc2, vl); // store 1st row result
+        vse32_v_f32m8(c3, vacc3, vl); // store 1st row result
+
+        if XNN_LIKELY(nc >= 4) {
+            c3 = (float*) ((uintptr_t) c3 + cn_stride);
+            c2 = (float*) ((uintptr_t) c2 + cn_stride);
+            c1 = (float*) ((uintptr_t) c1 + cn_stride);
+            c0 = (float*) ((uintptr_t) c0 + cn_stride);
+
+            a = (const float**restrict) ((uintptr_t) a - ks);
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+
+
+void xnn_f32_gemm_relu_ukernel_1x4__rvv_u1v(
+    size_t mr,
+    size_t nc,
+    size_t kc,
+    const float* restrict a,
+    size_t a_stride,
+    const float* restrict w,
+    float* restrict c,
+    size_t cm_stride,
+    size_t cn_stride,
+    const union xnn_f32_relu_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+	assert(mr != 0);
+	assert(mr <= 1);
+	assert(nc != 0);
+	assert(kc != 0);
+	assert(kc % sizeof(float) == 0);
+	assert(a != NULL);
+	assert(w != NULL);
+	assert(c != NULL);
+
+	const float* a0 = a;
+	float* c0 = c;
+	size_t kcl = kc / sizeof(float);
+
+	do {
+		size_t vl = vsetvl_e32m1(nc);
+		vfloat32m1_t vacc = vle32_v_f32m1(w, 4);
+		w += 4;
+		for(size_t k = 0; k < kcl ; k++){
+			vfloat32m1_t vw = vle32_v_f32m1(w, 4);
+			w += 4;
+			vacc = vfmacc_vf_f32m1(vacc, *a0, vw, 4);
+			a0++;
+		}
+        vacc = vfmax_vf_f32m1(vacc, 0.0f, vl);
+		vse32_v_f32m1(c0, vacc, vl);
+		if(nc >= 4){
+      		c0 = (float*) ((uintptr_t) c0 + cn_stride);
+      		a0 = (const void*) ((uintptr_t) a0 - kc);
+		}
+		nc -= vl;
+	} while (nc != 0);
+}
+
+void xnn_f32_gemm_relu_ukernel_4x4__rvv_u1v(
+    size_t mr,
+    size_t nc,
+    size_t kc,
+    const float* restrict a,
+    size_t a_stride,
+    const float* restrict w,
+    float* restrict c,
+    size_t cm_stride,
+    size_t cn_stride,
+    const union xnn_f32_relu_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 4); // max process 1 row
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    const float* a0 = a;
+    float* c0 = c;
+    const float* a1 = (const float*) ((uintptr_t) a0 + a_stride);
+    float* c1 = (float*) ((uintptr_t) c0 + cm_stride);
+    if XNN_UNPREDICTABLE(mr < 2) {
+        a1 = a0;
+        c1 = c0;
+    }
+    const float* a2 = (const float*) ((uintptr_t) a1 + a_stride);
+    float* c2 = (float*) ((uintptr_t) c1 + cm_stride);
+    if XNN_UNPREDICTABLE(mr <= 2) {
+        a2 = a1;
+        c2 = c1;
+    }
+    const float* a3 = (const float*) ((uintptr_t) a2 + a_stride);
+    float* c3 = (float*) ((uintptr_t) c2 + cm_stride);
+    if XNN_UNPREDICTABLE(mr != 4) {
+        a3 = a2;
+        c3 = c2;
+    }
+
+    size_t kcl = kc / sizeof(float);
+
+    do {
+        size_t vl = vsetvl_e32m1(nc); // vector length
+        vfloat32m1_t vacc0 = vle32_v_f32m1(w, 4); // 1st row count
+        vfloat32m1_t vacc1 = vle32_v_f32m1(w, 4); // 1st row count
+        vfloat32m1_t vacc2 = vle32_v_f32m1(w, 4); // 1st row count
+        vfloat32m1_t vacc3 = vle32_v_f32m1(w, 4); // 1st row count
+        w += 4;
+        for(size_t k = 0; k < kcl ; k++){
+            vfloat32m1_t vw = vle32_v_f32m1(w, 4);
+            w += 4;
+            vacc0 = vfmacc_vf_f32m1(vacc0, *a0, vw, 4); // update 1st row count
+            vacc1 = vfmacc_vf_f32m1(vacc1, *a1, vw, 4); // update 1st row count
+            vacc2 = vfmacc_vf_f32m1(vacc2, *a2, vw, 4); // update 1st row count
+            vacc3 = vfmacc_vf_f32m1(vacc3, *a3, vw, 4); // update 1st row count
+            a0++;
+            a1++;
+            a2++;
+            a3++;
+        }
+        vacc0 = vfmax_vf_f32m1(vacc0, 0.0f, vl);
+        vacc1 = vfmax_vf_f32m1(vacc1, 0.0f, vl);
+        vacc2 = vfmax_vf_f32m1(vacc2, 0.0f, vl);
+        vacc3 = vfmax_vf_f32m1(vacc3, 0.0f, vl);
+        vse32_v_f32m1(c0, vacc0, vl); // store 1st row result
+        vse32_v_f32m1(c1, vacc1, vl); // store 1st row result
+        vse32_v_f32m1(c2, vacc2, vl); // store 1st row result
+        vse32_v_f32m1(c3, vacc3, vl); // store 1st row result
+        if(nc >= 4){
+            c0 = (float*) ((uintptr_t) c0 + cn_stride); // update 1st row matrix C pointer
+            c1 = (float*) ((uintptr_t) c1 + cn_stride); // update 1st row matrix C pointer
+            c2 = (float*) ((uintptr_t) c2 + cn_stride); // update 1st row matrix C pointer
+            c3 = (float*) ((uintptr_t) c3 + cn_stride); // update 1st row matrix C pointer
+            a0 = (const void*) ((uintptr_t) a0 - kc); // update 1st row matrix A pointer
+            a1 = (const void*) ((uintptr_t) a1 - kc); // update 1st row matrix A pointer
+            a2 = (const void*) ((uintptr_t) a2 - kc); // update 1st row matrix A pointer
+            a3 = (const void*) ((uintptr_t) a3 - kc); // update 1st row matrix A pointer
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+void xnn_f32_gemm_relu_ukernel_1x8__rvv_u2v(
         size_t mr,
         size_t nc,
         size_t kc,
@@ -1952,7 +4269,7 @@ void xnn_f32_gemm_ukernel_1x8__rvv_u2v(
         float* restrict c,
         size_t cm_stride,
         size_t cn_stride,
-        const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+        const union xnn_f32_relu_params params[restrict XNN_MIN_ELEMENTS(1)])
 {
     assert(mr != 0);
     assert(mr <= 1);
@@ -1965,8 +4282,8 @@ void xnn_f32_gemm_ukernel_1x8__rvv_u2v(
 
     const float* a0 = a;
     float* c0 = c;
-    size_t kcl = kc / sizeof(float);
 
+    size_t kcl = kc / sizeof(float);
     do {
         size_t vl = vsetvl_e32m2(nc);
         vfloat32m2_t vacc = vle32_v_f32m2(w, 8);
@@ -1977,6 +4294,7 @@ void xnn_f32_gemm_ukernel_1x8__rvv_u2v(
             vacc = vfmacc_vf_f32m2(vacc, *a0, vw, 8);
             a0++;
         }
+        vacc = vfmax_vf_f32m2(vacc, 0.0f, vl);
         vse32_v_f32m2(c0, vacc, vl);
         if(nc >= 4){
             c0 = (float*) ((uintptr_t) c0 + cn_stride);
@@ -1986,7 +4304,7 @@ void xnn_f32_gemm_ukernel_1x8__rvv_u2v(
     } while (nc != 0);
 }
 
-void xnn_f32_gemm_ukernel_4x8__rvv_u2v(
+void xnn_f32_gemm_relu_ukernel_4x8__rvv_u2v(
         size_t mr,
         size_t nc,
         size_t kc,
@@ -1996,7 +4314,7 @@ void xnn_f32_gemm_ukernel_4x8__rvv_u2v(
         float* restrict c,
         size_t cm_stride,
         size_t cn_stride,
-        const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+        const union xnn_f32_relu_params params[restrict XNN_MIN_ELEMENTS(1)])
 {
     assert(mr != 0);
     assert(mr <= 4); // max process 1 row
@@ -2049,6 +4367,11 @@ void xnn_f32_gemm_ukernel_4x8__rvv_u2v(
             a2++;
             a3++;
         }
+        vacc0 = vfmax_vf_f32m2(vacc0, 0.0f, vl);
+        vacc1 = vfmax_vf_f32m2(vacc1, 0.0f, vl);
+        vacc2 = vfmax_vf_f32m2(vacc2, 0.0f, vl);
+        vacc3 = vfmax_vf_f32m2(vacc3, 0.0f, vl);
+
         vse32_v_f32m2(c0, vacc0, vl); // store 1st row result
         vse32_v_f32m2(c1, vacc1, vl); // store 1st row result
         vse32_v_f32m2(c2, vacc2, vl); // store 1st row result
@@ -2065,7 +4388,400 @@ void xnn_f32_gemm_ukernel_4x8__rvv_u2v(
         }
         nc -= vl;
     } while (nc != 0);
+}
 
+
+void xnn_f32_gemm_relu_ukernel_1x16__rvv_u4v(
+        size_t mr,
+        size_t nc,
+        size_t kc,
+        const float* restrict a,
+        size_t a_stride,
+        const float* restrict w,
+        float* restrict c,
+        size_t cm_stride,
+        size_t cn_stride,
+        const union xnn_f32_relu_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 1);
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    const float* a0 = a;
+    float* c0 = c;
+    size_t kcl = kc / sizeof(float);
+
+    do {
+        size_t vl = vsetvl_e32m4(nc);
+        vfloat32m4_t vacc = vle32_v_f32m4(w, 16);
+        w += 16;
+        for(size_t k = 0; k < kcl ; k++){
+            vfloat32m4_t vw = vle32_v_f32m4(w, 16);
+            w += 16;
+            vacc = vfmacc_vf_f32m4(vacc, *a0, vw, 16);
+            a0++;
+        }
+        vacc = vfmax_vf_f32m4(vacc, 0.0f, vl);
+        vse32_v_f32m4(c0, vacc, vl);
+        if(nc >= 4){
+            c0 = (float*) ((uintptr_t) c0 + cn_stride);
+            a0 = (const void*) ((uintptr_t) a0 - kc);
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+void xnn_f32_gemm_relu_ukernel_4x16__rvv_u4v(
+        size_t mr,
+        size_t nc,
+        size_t kc,
+        const float* restrict a,
+        size_t a_stride,
+        const float* restrict w,
+        float* restrict c,
+        size_t cm_stride,
+        size_t cn_stride,
+        const union xnn_f32_relu_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 4); // max process 1 row
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    const float* a0 = a;
+    float* c0 = c;
+    const float* a1 = (const float*) ((uintptr_t) a0 + a_stride);
+    float* c1 = (float*) ((uintptr_t) c0 + cm_stride);
+    if XNN_UNPREDICTABLE(mr < 2) {
+        a1 = a0;
+        c1 = c0;
+    }
+    const float* a2 = (const float*) ((uintptr_t) a1 + a_stride);
+    float* c2 = (float*) ((uintptr_t) c1 + cm_stride);
+    if XNN_UNPREDICTABLE(mr <= 2) {
+        a2 = a1;
+        c2 = c1;
+    }
+    const float* a3 = (const float*) ((uintptr_t) a2 + a_stride);
+    float* c3 = (float*) ((uintptr_t) c2 + cm_stride);
+    if XNN_UNPREDICTABLE(mr != 4) {
+        a3 = a2;
+        c3 = c2;
+    }
+
+    size_t kcl = kc / sizeof(float);
+
+    do {
+        size_t vl = vsetvl_e32m4(nc); // vector length
+        vfloat32m4_t vacc0 = vle32_v_f32m4(w, 16); // 1st row count
+        vfloat32m4_t vacc1 = vle32_v_f32m4(w, 16); // 1st row count
+        vfloat32m4_t vacc2 = vle32_v_f32m4(w, 16); // 1st row count
+        vfloat32m4_t vacc3 = vle32_v_f32m4(w, 16); // 1st row count
+        w += 16;
+        for(size_t k = 0; k < kcl ; k++){
+            vfloat32m4_t vw = vle32_v_f32m4(w, 16);
+            w += 16;
+            vacc0 = vfmacc_vf_f32m4(vacc0, *a0, vw, 16); // update 1st row count
+            vacc1 = vfmacc_vf_f32m4(vacc1, *a1, vw, 16); // update 1st row count
+            vacc2 = vfmacc_vf_f32m4(vacc2, *a2, vw, 16); // update 1st row count
+            vacc3 = vfmacc_vf_f32m4(vacc3, *a3, vw, 16); // update 1st row count
+            a0++;
+            a1++;
+            a2++;
+            a3++;
+        }
+        vacc0 = vfmax_vf_f32m4(vacc0, 0.0f, vl);
+        vacc1 = vfmax_vf_f32m4(vacc1, 0.0f, vl);
+        vacc2 = vfmax_vf_f32m4(vacc2, 0.0f, vl);
+        vacc3 = vfmax_vf_f32m4(vacc3, 0.0f, vl);
+        vse32_v_f32m4(c0, vacc0, vl); // store 1st row result
+        vse32_v_f32m4(c1, vacc1, vl); // store 1st row result
+        vse32_v_f32m4(c2, vacc2, vl); // store 1st row result
+        vse32_v_f32m4(c3, vacc3, vl); // store 1st row result
+        if(nc >= 4){
+            c0 = (float*) ((uintptr_t) c0 + cn_stride); // update 1st row matrix C pointer
+            c1 = (float*) ((uintptr_t) c1 + cn_stride); // update 1st row matrix C pointer
+            c2 = (float*) ((uintptr_t) c2 + cn_stride); // update 1st row matrix C pointer
+            c3 = (float*) ((uintptr_t) c3 + cn_stride); // update 1st row matrix C pointer
+            a0 = (const void*) ((uintptr_t) a0 - kc); // update 1st row matrix A pointer
+            a1 = (const void*) ((uintptr_t) a1 - kc); // update 1st row matrix A pointer
+            a2 = (const void*) ((uintptr_t) a2 - kc); // update 1st row matrix A pointer
+            a3 = (const void*) ((uintptr_t) a3 - kc); // update 1st row matrix A pointer
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+void xnn_f32_gemm_relu_ukernel_1x32__rvv_u8v(
+        size_t mr,
+        size_t nc,
+        size_t kc,
+        const float* restrict a,
+        size_t a_stride,
+        const float* restrict w,
+        float* restrict c,
+        size_t cm_stride,
+        size_t cn_stride,
+        const union xnn_f32_relu_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+     assert(mr != 0);
+    assert(mr <= 1);
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    const float* a0 = a;
+    float* c0 = c;
+    size_t kcl = kc / sizeof(float);
+
+    do {
+        size_t vl = vsetvl_e32m8(nc);
+        vfloat32m8_t vacc = vle32_v_f32m8(w, 32);
+        w += 32;
+        for(size_t k = 0; k < kcl ; k++){
+            vfloat32m8_t vw = vle32_v_f32m8(w, 32);
+            w += 32;
+            vacc = vfmacc_vf_f32m8(vacc, *a0, vw, 32);
+            a0++;
+        }
+        vacc = vfmax_vf_f32m8(vacc, 0.0f, vl);
+        vse32_v_f32m8(c0, vacc, vl);
+        if(nc >= 4){
+            c0 = (float*) ((uintptr_t) c0 + cn_stride);
+            a0 = (const void*) ((uintptr_t) a0 - kc);
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+void xnn_f32_gemm_relu_ukernel_4x32__rvv_u8v(
+    size_t mr,
+        size_t nc,
+        size_t kc,
+        const float* restrict a,
+        size_t a_stride,
+        const float* restrict w,
+        float* restrict c,
+        size_t cm_stride,
+        size_t cn_stride,
+        const union xnn_f32_relu_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    const float* a0 = a;
+    float* c0 = c;
+    const float* a1 = (const float*) ((uintptr_t) a0 + a_stride);
+    float* c1 = (float*) ((uintptr_t) c0 + cm_stride);
+    if XNN_UNPREDICTABLE(mr < 2) {
+        a1 = a0;
+        c1 = c0;
+    }
+    const float* a2 = (const float*) ((uintptr_t) a1 + a_stride);
+    float* c2 = (float*) ((uintptr_t) c1 + cm_stride);
+    if XNN_UNPREDICTABLE(mr <= 2) {
+        a2 = a1;
+        c2 = c1;
+    }
+    const float* a3 = (const float*) ((uintptr_t) a2 + a_stride);
+    float* c3 = (float*) ((uintptr_t) c2 + cm_stride);
+    if XNN_UNPREDICTABLE(mr != 4) {
+        a3 = a2;
+        c3 = c2;
+    }
+
+    size_t kcl = kc / sizeof(float);
+
+    do
+    {
+        size_t vl = vsetvl_e32m8(nc);
+        vfloat32m8_t vacc0 = vle32_v_f32m8(w, 32); // 1st row count
+        vfloat32m8_t vacc1 = vle32_v_f32m8(w, 32); // 1st row count
+        vfloat32m8_t vacc2 = vle32_v_f32m8(w, 32); // 1st row count
+        vfloat32m8_t vacc3 = vle32_v_f32m8(w, 32); // 1st row count
+        w += 32;
+        for(size_t k = 0; k < kcl ; k++){
+            vfloat32m8_t vw = vle32_v_f32m8(w, 32);
+            w += 32;
+            vacc0 = vfmacc_vf_f32m8(vacc0, *a0, vw, 32); // update 1st row count
+            vacc1 = vfmacc_vf_f32m8(vacc1, *a1, vw, 32); // update 1st row count
+            vacc2 = vfmacc_vf_f32m8(vacc2, *a2, vw, 32); // update 1st row count
+            vacc3 = vfmacc_vf_f32m8(vacc3, *a3, vw, 32); // update 1st row count
+            a0++;
+            a1++;
+            a2++;
+            a3++;
+        }
+        vacc0 = vfmax_vf_f32m8(vacc0, 0.0f, vl);
+        vacc1 = vfmax_vf_f32m8(vacc1, 0.0f, vl);
+        vacc2 = vfmax_vf_f32m8(vacc2, 0.0f, vl);
+        vacc3 = vfmax_vf_f32m8(vacc3, 0.0f, vl);
+        vse32_v_f32m8(c0, vacc0, vl); // store 1st row result
+        vse32_v_f32m8(c1, vacc1, vl); // store 1st row result
+        vse32_v_f32m8(c2, vacc2, vl); // store 1st row result
+        vse32_v_f32m8(c3, vacc3, vl); // store 1st row result
+        if(nc >= 4){
+            c0 = (float*) ((uintptr_t) c0 + cn_stride); // update 1st row matrix C pointer
+            c1 = (float*) ((uintptr_t) c1 + cn_stride); // update 1st row matrix C pointer
+            c2 = (float*) ((uintptr_t) c2 + cn_stride); // update 1st row matrix C pointer
+            c3 = (float*) ((uintptr_t) c3 + cn_stride); // update 1st row matrix C pointer
+            a0 = (const void*) ((uintptr_t) a0 - kc); // update 1st row matrix A pointer
+            a1 = (const void*) ((uintptr_t) a1 - kc); // update 1st row matrix A pointer
+            a2 = (const void*) ((uintptr_t) a2 - kc); // update 1st row matrix A pointer
+            a3 = (const void*) ((uintptr_t) a3 - kc); // update 1st row matrix A pointer
+        }
+        nc -= vl;
+    } while (nc != 0);
+    
+}
+
+void xnn_f32_gemm_minmax_ukernel_1x4__rvv_u1v(
+    size_t mr,
+    size_t nc,
+    size_t kc,
+    const float* restrict a,
+    size_t a_stride,
+    const float* restrict w,
+    float* restrict c,
+    size_t cm_stride,
+    size_t cn_stride,
+    const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+	assert(mr != 0);
+	assert(mr <= 1);
+	assert(nc != 0);
+	assert(kc != 0);
+	assert(kc % sizeof(float) == 0);
+	assert(a != NULL);
+	assert(w != NULL);
+	assert(c != NULL);
+
+	const float* a0 = a;
+	float* c0 = c;
+	size_t kcl = kc / sizeof(float);
+    const float vmin = params->scalar.min;
+    const float vmax = params->scalar.max;
+
+	do {
+		size_t vl = vsetvl_e32m1(nc);
+		vfloat32m1_t vacc = vle32_v_f32m1(w, 4);
+		w += 4;
+		for(size_t k = 0; k < kcl ; k++){
+			vfloat32m1_t vw = vle32_v_f32m1(w, 4);
+			w += 4;
+			vacc = vfmacc_vf_f32m1(vacc, *a0, vw, 4);
+			a0++;
+		}
+        vacc = vfmax_vf_f32m1(vacc, vmin, vl);
+        vacc = vfmin_vf_f32m1(vacc, vmax, vl);
+		vse32_v_f32m1(c0, vacc, vl);
+		if(nc >= 4){
+      		c0 = (float*) ((uintptr_t) c0 + cn_stride);
+      		a0 = (const void*) ((uintptr_t) a0 - kc);
+		}
+		nc -= vl;
+	} while (nc != 0);
+}
+
+void xnn_f32_gemm_minmax_ukernel_4x4__rvv_u1v(
+    size_t mr,
+    size_t nc,
+    size_t kc,
+    const float* restrict a,
+    size_t a_stride,
+    const float* restrict w,
+    float* restrict c,
+    size_t cm_stride,
+    size_t cn_stride,
+    const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 4); // max process 1 row
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    const float* a0 = a;
+    float* c0 = c;
+    const float* a1 = (const float*) ((uintptr_t) a0 + a_stride);
+    float* c1 = (float*) ((uintptr_t) c0 + cm_stride);
+    if XNN_UNPREDICTABLE(mr < 2) {
+        a1 = a0;
+        c1 = c0;
+    }
+    const float* a2 = (const float*) ((uintptr_t) a1 + a_stride);
+    float* c2 = (float*) ((uintptr_t) c1 + cm_stride);
+    if XNN_UNPREDICTABLE(mr <= 2) {
+        a2 = a1;
+        c2 = c1;
+    }
+    const float* a3 = (const float*) ((uintptr_t) a2 + a_stride);
+    float* c3 = (float*) ((uintptr_t) c2 + cm_stride);
+    if XNN_UNPREDICTABLE(mr != 4) {
+        a3 = a2;
+        c3 = c2;
+    }
+    const float vmin = params->scalar.min;
+    const float vmax = params->scalar.max;
+
+    size_t kcl = kc / sizeof(float);
+
+    do {
+        size_t vl = vsetvl_e32m1(nc); // vector length
+        vfloat32m1_t vacc0 = vle32_v_f32m1(w, 4); // 1st row count
+        vfloat32m1_t vacc1 = vle32_v_f32m1(w, 4); // 1st row count
+        vfloat32m1_t vacc2 = vle32_v_f32m1(w, 4); // 1st row count
+        vfloat32m1_t vacc3 = vle32_v_f32m1(w, 4); // 1st row count
+        w += 4;
+        for(size_t k = 0; k < kcl ; k++){
+            vfloat32m1_t vw = vle32_v_f32m1(w, 4);
+            w += 4;
+            vacc0 = vfmacc_vf_f32m1(vacc0, *a0, vw, 4); // update 1st row count
+            vacc1 = vfmacc_vf_f32m1(vacc1, *a1, vw, 4); // update 1st row count
+            vacc2 = vfmacc_vf_f32m1(vacc2, *a2, vw, 4); // update 1st row count
+            vacc3 = vfmacc_vf_f32m1(vacc3, *a3, vw, 4); // update 1st row count
+            a0++;
+            a1++;
+            a2++;
+            a3++;
+        }
+        vacc0 = vfmax_vf_f32m1(vacc0, vmin, vl);
+        vacc1 = vfmax_vf_f32m1(vacc1, vmin, vl);
+        vacc2 = vfmax_vf_f32m1(vacc2, vmin, vl);
+        vacc3 = vfmax_vf_f32m1(vacc3, vmin, vl);
+
+        vacc0 = vfmin_vf_f32m1(vacc0, vmax, vl);
+        vacc1 = vfmin_vf_f32m1(vacc1, vmax, vl);
+        vacc2 = vfmin_vf_f32m1(vacc2, vmax, vl);
+        vacc3 = vfmin_vf_f32m1(vacc3, vmax, vl);
+        vse32_v_f32m1(c0, vacc0, vl); // store 1st row result
+        vse32_v_f32m1(c1, vacc1, vl); // store 1st row result
+        vse32_v_f32m1(c2, vacc2, vl); // store 1st row result
+        vse32_v_f32m1(c3, vacc3, vl); // store 1st row result
+        if(nc >= 4){
+            c0 = (float*) ((uintptr_t) c0 + cn_stride); // update 1st row matrix C pointer
+            c1 = (float*) ((uintptr_t) c1 + cn_stride); // update 1st row matrix C pointer
+            c2 = (float*) ((uintptr_t) c2 + cn_stride); // update 1st row matrix C pointer
+            c3 = (float*) ((uintptr_t) c3 + cn_stride); // update 1st row matrix C pointer
+            a0 = (const void*) ((uintptr_t) a0 - kc); // update 1st row matrix A pointer
+            a1 = (const void*) ((uintptr_t) a1 - kc); // update 1st row matrix A pointer
+            a2 = (const void*) ((uintptr_t) a2 - kc); // update 1st row matrix A pointer
+            a3 = (const void*) ((uintptr_t) a3 - kc); // update 1st row matrix A pointer
+        }
+        nc -= vl;
+    } while (nc != 0);
 }
 
 void xnn_f32_gemm_minmax_ukernel_1x8__rvv_u2v(
@@ -2206,6 +4922,466 @@ void xnn_f32_gemm_minmax_ukernel_4x8__rvv_u2v(
             a1 = (const void*) ((uintptr_t) a1 - kc); // update 1st row matrix A pointer
             a2 = (const void*) ((uintptr_t) a2 - kc); // update 1st row matrix A pointer
             a3 = (const void*) ((uintptr_t) a3 - kc); // update 1st row matrix A pointer
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+
+void xnn_f32_gemm_minmax_ukernel_1x16__rvv_u4v(
+        size_t mr,
+        size_t nc,
+        size_t kc,
+        const float* restrict a,
+        size_t a_stride,
+        const float* restrict w,
+        float* restrict c,
+        size_t cm_stride,
+        size_t cn_stride,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 1);
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    const float* a0 = a;
+    float* c0 = c;
+    size_t kcl = kc / sizeof(float);
+
+    const float vmin = params->scalar.min;
+    const float vmax = params->scalar.max;
+
+    do {
+        size_t vl = vsetvl_e32m4(nc);
+        vfloat32m4_t vacc = vle32_v_f32m4(w, 16);
+        w += 16;
+        for(size_t k = 0; k < kcl ; k++){
+            vfloat32m4_t vw = vle32_v_f32m4(w, 16);
+            w += 16;
+            vacc = vfmacc_vf_f32m4(vacc, *a0, vw, 16);
+            a0++;
+        }
+        vacc = vfmax_vf_f32m4(vacc, vmin, vl);
+        vacc = vfmin_vf_f32m4(vacc, vmax, vl);
+        vse32_v_f32m4(c0, vacc, vl);
+        if(nc >= 4){
+            c0 = (float*) ((uintptr_t) c0 + cn_stride);
+            a0 = (const void*) ((uintptr_t) a0 - kc);
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+void xnn_f32_gemm_minmax_ukernel_4x16__rvv_u4v(
+        size_t mr,
+        size_t nc,
+        size_t kc,
+        const float* restrict a,
+        size_t a_stride,
+        const float* restrict w,
+        float* restrict c,
+        size_t cm_stride,
+        size_t cn_stride,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 4); // max process 1 row
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    const float* a0 = a;
+    float* c0 = c;
+    const float* a1 = (const float*) ((uintptr_t) a0 + a_stride);
+    float* c1 = (float*) ((uintptr_t) c0 + cm_stride);
+    if XNN_UNPREDICTABLE(mr < 2) {
+        a1 = a0;
+        c1 = c0;
+    }
+    const float* a2 = (const float*) ((uintptr_t) a1 + a_stride);
+    float* c2 = (float*) ((uintptr_t) c1 + cm_stride);
+    if XNN_UNPREDICTABLE(mr <= 2) {
+        a2 = a1;
+        c2 = c1;
+    }
+    const float* a3 = (const float*) ((uintptr_t) a2 + a_stride);
+    float* c3 = (float*) ((uintptr_t) c2 + cm_stride);
+    if XNN_UNPREDICTABLE(mr != 4) {
+        a3 = a2;
+        c3 = c2;
+    }
+
+    const float vmin = params->scalar.min;
+    const float vmax = params->scalar.max;
+
+    size_t kcl = kc / sizeof(float);
+
+    do {
+        size_t vl = vsetvl_e32m4(nc); // vector length
+        vfloat32m4_t vacc0 = vle32_v_f32m4(w, 16); // 1st row count
+        vfloat32m4_t vacc1 = vle32_v_f32m4(w, 16); // 1st row count
+        vfloat32m4_t vacc2 = vle32_v_f32m4(w, 16); // 1st row count
+        vfloat32m4_t vacc3 = vle32_v_f32m4(w, 16); // 1st row count
+        w += 16;
+        for(size_t k = 0; k < kcl ; k++){
+            vfloat32m4_t vw = vle32_v_f32m4(w, 16);
+            w += 16;
+            vacc0 = vfmacc_vf_f32m4(vacc0, *a0, vw, 16); // update 1st row count
+            vacc1 = vfmacc_vf_f32m4(vacc1, *a1, vw, 16); // update 1st row count
+            vacc2 = vfmacc_vf_f32m4(vacc2, *a2, vw, 16); // update 1st row count
+            vacc3 = vfmacc_vf_f32m4(vacc3, *a3, vw, 16); // update 1st row count
+            a0++;
+            a1++;
+            a2++;
+            a3++;
+        }
+        vacc0 = vfmax_vf_f32m4(vacc0, vmin, vl);
+        vacc1 = vfmax_vf_f32m4(vacc1, vmin, vl);
+        vacc2 = vfmax_vf_f32m4(vacc2, vmin, vl);
+        vacc3 = vfmax_vf_f32m4(vacc3, vmin, vl);
+
+        vacc0 = vfmin_vf_f32m4(vacc0, vmax, vl);
+        vacc1 = vfmin_vf_f32m4(vacc1, vmax, vl);
+        vacc2 = vfmin_vf_f32m4(vacc2, vmax, vl);
+        vacc3 = vfmin_vf_f32m4(vacc3, vmax, vl);
+        vse32_v_f32m4(c0, vacc0, vl); // store 1st row result
+        vse32_v_f32m4(c1, vacc1, vl); // store 1st row result
+        vse32_v_f32m4(c2, vacc2, vl); // store 1st row result
+        vse32_v_f32m4(c3, vacc3, vl); // store 1st row result
+        if(nc >= 4){
+            c0 = (float*) ((uintptr_t) c0 + cn_stride); // update 1st row matrix C pointer
+            c1 = (float*) ((uintptr_t) c1 + cn_stride); // update 1st row matrix C pointer
+            c2 = (float*) ((uintptr_t) c2 + cn_stride); // update 1st row matrix C pointer
+            c3 = (float*) ((uintptr_t) c3 + cn_stride); // update 1st row matrix C pointer
+            a0 = (const void*) ((uintptr_t) a0 - kc); // update 1st row matrix A pointer
+            a1 = (const void*) ((uintptr_t) a1 - kc); // update 1st row matrix A pointer
+            a2 = (const void*) ((uintptr_t) a2 - kc); // update 1st row matrix A pointer
+            a3 = (const void*) ((uintptr_t) a3 - kc); // update 1st row matrix A pointer
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+void xnn_f32_gemm_minmax_ukernel_1x32__rvv_u8v(
+        size_t mr,
+        size_t nc,
+        size_t kc,
+        const float* restrict a,
+        size_t a_stride,
+        const float* restrict w,
+        float* restrict c,
+        size_t cm_stride,
+        size_t cn_stride,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+     assert(mr != 0);
+    assert(mr <= 1);
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    const float* a0 = a;
+    float* c0 = c;
+    size_t kcl = kc / sizeof(float);
+    const float vmin = params->scalar.min;
+    const float vmax = params->scalar.max;
+
+    do {
+        size_t vl = vsetvl_e32m8(nc);
+        vfloat32m8_t vacc = vle32_v_f32m8(w, 32);
+        w += 32;
+        for(size_t k = 0; k < kcl ; k++){
+            vfloat32m8_t vw = vle32_v_f32m8(w, 32);
+            w += 32;
+            vacc = vfmacc_vf_f32m8(vacc, *a0, vw, 32);
+            a0++;
+        }
+        vacc = vfmax_vf_f32m2(vacc, vmin, vl);
+        vacc = vfmin_vf_f32m2(vacc, vmax, vl);
+        vse32_v_f32m8(c0, vacc, vl);
+        if(nc >= 4){
+            c0 = (float*) ((uintptr_t) c0 + cn_stride);
+            a0 = (const void*) ((uintptr_t) a0 - kc);
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+void xnn_f32_gemm_minmax_ukernel_4x32__rvv_u8v(
+    size_t mr,
+        size_t nc,
+        size_t kc,
+        const float* restrict a,
+        size_t a_stride,
+        const float* restrict w,
+        float* restrict c,
+        size_t cm_stride,
+        size_t cn_stride,
+        const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    const float* a0 = a;
+    float* c0 = c;
+    const float* a1 = (const float*) ((uintptr_t) a0 + a_stride);
+    float* c1 = (float*) ((uintptr_t) c0 + cm_stride);
+    if XNN_UNPREDICTABLE(mr < 2) {
+        a1 = a0;
+        c1 = c0;
+    }
+    const float* a2 = (const float*) ((uintptr_t) a1 + a_stride);
+    float* c2 = (float*) ((uintptr_t) c1 + cm_stride);
+    if XNN_UNPREDICTABLE(mr <= 2) {
+        a2 = a1;
+        c2 = c1;
+    }
+    const float* a3 = (const float*) ((uintptr_t) a2 + a_stride);
+    float* c3 = (float*) ((uintptr_t) c2 + cm_stride);
+    if XNN_UNPREDICTABLE(mr != 4) {
+        a3 = a2;
+        c3 = c2;
+    }
+
+    size_t kcl = kc / sizeof(float);
+    const float vmin = params->scalar.min;
+    const float vmax = params->scalar.max;
+
+    do
+    {
+        size_t vl = vsetvl_e32m8(nc);
+        vfloat32m8_t vacc0 = vle32_v_f32m8(w, 32); // 1st row count
+        vfloat32m8_t vacc1 = vle32_v_f32m8(w, 32); // 1st row count
+        vfloat32m8_t vacc2 = vle32_v_f32m8(w, 32); // 1st row count
+        vfloat32m8_t vacc3 = vle32_v_f32m8(w, 32); // 1st row count
+        w += 32;
+        for(size_t k = 0; k < kcl ; k++){
+            vfloat32m8_t vw = vle32_v_f32m8(w, 32);
+            w += 32;
+            vacc0 = vfmacc_vf_f32m8(vacc0, *a0, vw, 32); // update 1st row count
+            vacc1 = vfmacc_vf_f32m8(vacc1, *a1, vw, 32); // update 1st row count
+            vacc2 = vfmacc_vf_f32m8(vacc2, *a2, vw, 32); // update 1st row count
+            vacc3 = vfmacc_vf_f32m8(vacc3, *a3, vw, 32); // update 1st row count
+            a0++;
+            a1++;
+            a2++;
+            a3++;
+        }
+        vacc0 = vfmax_vf_f32m8(vacc0, vmin, vl);
+        vacc1 = vfmax_vf_f32m8(vacc1, vmin, vl);
+        vacc2 = vfmax_vf_f32m8(vacc2, vmin, vl);
+        vacc3 = vfmax_vf_f32m8(vacc3, vmin, vl);
+
+        vacc0 = vfmin_vf_f32m8(vacc0, vmax, vl);
+        vacc1 = vfmin_vf_f32m8(vacc1, vmax, vl);
+        vacc2 = vfmin_vf_f32m8(vacc2, vmax, vl);
+        vacc3 = vfmin_vf_f32m8(vacc3, vmax, vl);
+        vse32_v_f32m8(c0, vacc0, vl); // store 1st row result
+        vse32_v_f32m8(c1, vacc1, vl); // store 1st row result
+        vse32_v_f32m8(c2, vacc2, vl); // store 1st row result
+        vse32_v_f32m8(c3, vacc3, vl); // store 1st row result
+        if(nc >= 4){
+            c0 = (float*) ((uintptr_t) c0 + cn_stride); // update 1st row matrix C pointer
+            c1 = (float*) ((uintptr_t) c1 + cn_stride); // update 1st row matrix C pointer
+            c2 = (float*) ((uintptr_t) c2 + cn_stride); // update 1st row matrix C pointer
+            c3 = (float*) ((uintptr_t) c3 + cn_stride); // update 1st row matrix C pointer
+            a0 = (const void*) ((uintptr_t) a0 - kc); // update 1st row matrix A pointer
+            a1 = (const void*) ((uintptr_t) a1 - kc); // update 1st row matrix A pointer
+            a2 = (const void*) ((uintptr_t) a2 - kc); // update 1st row matrix A pointer
+            a3 = (const void*) ((uintptr_t) a3 - kc); // update 1st row matrix A pointer
+        }
+        nc -= vl;
+    } while (nc != 0);
+    
+}
+
+
+void xnn_f32_igemm_minmax_ukernel_1x4__rvv_u1v(
+    size_t mr,
+    size_t nc,
+    size_t kc,
+    size_t ks,
+    const float** restrict a,
+    const float* restrict w,
+    float* restrict c,
+    size_t cm_stride,
+    size_t cn_stride,
+    size_t a_offset,
+    const float* zero,
+    const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 1);
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(ks != 0);
+    assert(ks % (1 * sizeof(void*)) == 0);
+    assert(a_offset % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    float* c0 = c;
+
+    const float vmin = params->scalar.min;
+    const float vmax = params->scalar.max;
+
+    do {
+        size_t vl = vsetvl_e32m1(nc); // vector length
+        vfloat32m1_t vacc0 = vle32_v_f32m1(w, 4); // 1st row count
+        w += 4;
+
+         size_t p = ks;
+        size_t kcl = kc / sizeof(float);
+        do {
+             const float* restrict a0 = a[0];
+            assert(a0 != NULL);
+            if XNN_UNPREDICTABLE(a0 != zero) {
+                a0 = (const float*) ((uintptr_t) a0 + a_offset);
+            }
+            a += 1;
+
+            size_t k = kc;
+            for(size_t k = 0; k < kcl ; k++){
+                vfloat32m2_t vw = vle32_v_f32m1(w, 4);
+                w += 4;
+                vacc0 = vfmacc_vf_f32m1(vacc0, *a0, vw, 4); // update 1st row count
+                a0++;
+            }
+            p -= 1 * sizeof(void*);
+        } while (p != 0);
+        vacc0 = vfmax_vf_f32m1(vacc0, vmin, vl);
+        vacc0 = vfmin_vf_f32m1(vacc0, vmax, vl);
+        vse32_v_f32m1(c0, vacc0, vl); // store 1st row result
+
+        if XNN_LIKELY(nc >= 4) {
+            c0 = (float*) ((uintptr_t) c0 + cn_stride);
+            a = (const float**restrict) ((uintptr_t) a - ks);
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+void xnn_f32_igemm_ukernel_4x4__rvv_u1v(
+    size_t mr,
+    size_t nc,
+    size_t kc,
+    size_t ks,
+    const float** restrict a,
+    const float* restrict w,
+    float* restrict c,
+    size_t cm_stride,
+    size_t cn_stride,
+    size_t a_offset,const float* zero,
+    const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 4);
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(ks != 0);
+    assert(ks % (4 * sizeof(void*)) == 0);
+    assert(a_offset % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    float* c0 = c;
+    float* c1 = (float*) ((uintptr_t) c0 + cm_stride);
+    if XNN_UNPREDICTABLE(mr < 2) {
+        c1 = c0;
+    }
+    float* c2 = (float*) ((uintptr_t) c1 + cm_stride);
+    if XNN_UNPREDICTABLE(mr <= 2) {
+        c2 = c1;
+    }
+    float* c3 = (float*) ((uintptr_t) c2 + cm_stride);
+    if XNN_UNPREDICTABLE(mr != 4) {
+        c3 = c2;
+    }
+
+    const float vmin = params->scalar.min;
+    const float vmax = params->scalar.max;
+
+    do {
+        size_t vl = vsetvl_e32m1(nc); // vector length
+        vfloat32m1_t vacc0 = vle32_v_f32m1(w, 4); // 1st row count
+        vfloat32m1_t vacc1 = vle32_v_f32m1(w, 4); // 1st row count
+        vfloat32m1_t vacc2 = vle32_v_f32m1(w, 4); // 1st row count
+        vfloat32m1_t vacc3 = vle32_v_f32m1(w, 4); // 1st row count
+        w += 4;
+
+        size_t p = ks;
+        size_t kcl = kc / sizeof(float);
+        do {
+            const float* restrict a0 = a[0];
+            assert(a0 != NULL);
+            if XNN_UNPREDICTABLE(a0 != zero) {
+                a0 = (const float*) ((uintptr_t) a0 + a_offset);
+            }
+            const float* restrict a1 = a[1];
+            assert(a1 != NULL);
+            if XNN_UNPREDICTABLE(a1 != zero) {
+                a1 = (const float*) ((uintptr_t) a1 + a_offset);
+            }
+            const float* restrict a2 = a[2];
+            assert(a2 != NULL);
+            if XNN_UNPREDICTABLE(a2 != zero) {
+                a2 = (const float*) ((uintptr_t) a2 + a_offset);
+            }
+            const float* restrict a3 = a[3];
+            assert(a3 != NULL);
+            if XNN_UNPREDICTABLE(a3 != zero) {
+                a3 = (const float*) ((uintptr_t) a3 + a_offset);
+            }
+            a += 4;
+
+            size_t k = kc;
+            for(size_t k = 0; k < kcl ; k++){
+                vfloat32m1_t vw = vle32_v_f32m1(w, 4);
+                w += 4;
+                vacc0 = vfmacc_vf_f32m1(vacc0, *a0, vw, 4); // update 1st row count
+                vacc1 = vfmacc_vf_f32m1(vacc1, *a1, vw, 4); // update 1st row count
+                vacc2 = vfmacc_vf_f32m1(vacc2, *a2, vw, 4); // update 1st row count
+                vacc3 = vfmacc_vf_f32m1(vacc3, *a3, vw, 4); // update 1st row count
+                a0++;
+                a1++;
+                a2++;
+                a3++;
+            }
+            p -= 4 * sizeof(void*);
+        } while (p != 0);
+        vacc0 = vfmax_vf_f32m1(vacc0, vmin, vl);
+        vacc1 = vfmax_vf_f32m1(vacc1, vmin, vl);
+        vacc2 = vfmax_vf_f32m1(vacc2, vmin, vl);
+        vacc3 = vfmax_vf_f32m1(vacc3, vmin, vl);
+
+        vacc0 = vfmin_vf_f32m1(vacc0, vmax, vl);
+        vacc1 = vfmin_vf_f32m1(vacc1, vmax, vl);
+        vacc2 = vfmin_vf_f32m1(vacc2, vmax, vl);
+        vacc3 = vfmin_vf_f32m1(vacc3, vmax, vl);
+        vse32_v_f32m1(c0, vacc0, vl); // store 1st row result
+        vse32_v_f32m1(c1, vacc1, vl); // store 1st row result
+        vse32_v_f32m1(c2, vacc2, vl); // store 1st row result
+        vse32_v_f32m1(c3, vacc3, vl); // store 1st row result
+
+        if XNN_LIKELY(nc >= 4) {
+            c3 = (float*) ((uintptr_t) c3 + cn_stride);
+            c2 = (float*) ((uintptr_t) c2 + cn_stride);
+            c1 = (float*) ((uintptr_t) c1 + cn_stride);
+            c0 = (float*) ((uintptr_t) c0 + cn_stride);
+
+            a = (const float**restrict) ((uintptr_t) a - ks);
         }
         nc -= vl;
     } while (nc != 0);
@@ -2399,135 +5575,549 @@ void xnn_f32_igemm_minmax_ukernel_4x8__rvv_u2v(
     } while (nc != 0);
 }
 
-void xnn_f32_gemm_relu_ukernel_1x8__rvv_u2v(
+void xnn_f32_igemm_minmax_ukernel_1x16__rvv_u2v(
         size_t mr,
         size_t nc,
         size_t kc,
-        const float* restrict a,
-        size_t a_stride,
+        size_t ks,
+        const float** restrict a,
         const float* restrict w,
         float* restrict c,
         size_t cm_stride,
         size_t cn_stride,
-        const union xnn_f32_relu_params params[restrict XNN_MIN_ELEMENTS(1)])
+        size_t a_offset,
+        const float* zero,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
 {
     assert(mr != 0);
     assert(mr <= 1);
     assert(nc != 0);
     assert(kc != 0);
     assert(kc % sizeof(float) == 0);
-    assert(a != NULL);
-    assert(w != NULL);
-    assert(c != NULL);
+    assert(ks != 0);
+    assert(ks % (1 * sizeof(void*)) == 0);
+    assert(a_offset % sizeof(float) == 0);
+    assert(a!= NULL);
+    assert(w!= NULL);
+    assert(c!= NULL);
 
-    const float* a0 = a;
     float* c0 = c;
 
-    size_t kcl = kc / sizeof(float);
+    const float vmin = params->scalar.min;
+    const float vmax = params->scalar.max;
+
     do {
-        size_t vl = vsetvl_e32m2(nc);
-        vfloat32m2_t vacc = vle32_v_f32m2(w, 8);
-        w += 8;
-        for(size_t k = 0; k < kcl ; k++){
-            vfloat32m2_t vw = vle32_v_f32m2(w, 8);
-            w += 8;
-            vacc = vfmacc_vf_f32m2(vacc, *a0, vw, 8);
-            a0++;
-        }
-        vacc = vfmax_vf_f32m2(vacc, 0.0f, vl);
-        vse32_v_f32m2(c0, vacc, vl);
-        if(nc >= 4){
+        size_t vl = vsetvl_e32m4(nc); // vector length
+        vfloat32m4_t vacc0 = vle32_v_f32m4(w, 16); // 1st row count
+        w += 16;
+
+        size_t p = ks;
+        size_t kcl = kc / sizeof(float);
+        do {
+            const float* restrict a0 = a[0];
+            assert(a0 != NULL);
+            if XNN_UNPREDICTABLE(a0 != zero) {
+                a0 = (const float*) ((uintptr_t) a0 + a_offset);
+            }
+            a += 1;
+
+            size_t k = kc;
+            for(size_t k = 0; k < kcl ; k++){
+                vfloat32m4_t vw = vle32_v_f32m4(w, 16);
+                w += 16;
+                vacc0 = vfmacc_vf_f32m4(vacc0, *a0, vw, 16); // update 1st row count
+                a0++;
+            }
+            p -= 1 * sizeof(void*);
+        } while (p != 0);
+        vacc0 = vfmax_vf_f32m2(vacc0, vmin, vl);
+        vacc0 = vfmin_vf_f32m2(vacc0, vmax, vl);
+        vse32_v_f32m4(c0, vacc0, vl); // store 1st row result
+
+        if XNN_LIKELY(nc >= 4) {
             c0 = (float*) ((uintptr_t) c0 + cn_stride);
-            a0 = (const void*) ((uintptr_t) a0 - kc);
+            a = (const float**restrict) ((uintptr_t) a - ks);
         }
         nc -= vl;
     } while (nc != 0);
 }
 
-void xnn_f32_gemm_relu_ukernel_4x8__rvv_u2v(
+void xnn_f32_igemm_ukernel_4x16__rvv_u4v(
         size_t mr,
         size_t nc,
         size_t kc,
-        const float* restrict a,
-        size_t a_stride,
+        size_t ks,
+        const float** restrict a,
         const float* restrict w,
         float* restrict c,
         size_t cm_stride,
         size_t cn_stride,
-        const union xnn_f32_relu_params params[restrict XNN_MIN_ELEMENTS(1)])
+        size_t a_offset,const float* zero,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
 {
     assert(mr != 0);
-    assert(mr <= 4); // max process 1 row
+    assert(mr <= 4);
     assert(nc != 0);
     assert(kc != 0);
     assert(kc % sizeof(float) == 0);
+    assert(ks != 0);
+    assert(ks % (4 * sizeof(void*)) == 0);
+    assert(a_offset % sizeof(float) == 0);
     assert(a != NULL);
     assert(w != NULL);
     assert(c != NULL);
 
-    const float* a0 = a;
     float* c0 = c;
-    const float* a1 = (const float*) ((uintptr_t) a0 + a_stride);
     float* c1 = (float*) ((uintptr_t) c0 + cm_stride);
     if XNN_UNPREDICTABLE(mr < 2) {
-        a1 = a0;
         c1 = c0;
     }
-    const float* a2 = (const float*) ((uintptr_t) a1 + a_stride);
     float* c2 = (float*) ((uintptr_t) c1 + cm_stride);
     if XNN_UNPREDICTABLE(mr <= 2) {
-        a2 = a1;
         c2 = c1;
     }
-    const float* a3 = (const float*) ((uintptr_t) a2 + a_stride);
     float* c3 = (float*) ((uintptr_t) c2 + cm_stride);
     if XNN_UNPREDICTABLE(mr != 4) {
-        a3 = a2;
         c3 = c2;
     }
 
-    size_t kcl = kc / sizeof(float);
+    const float vmin = params->scalar.min;
+    const float vmax = params->scalar.max;
 
     do {
-        size_t vl = vsetvl_e32m2(nc); // vector length
-        vfloat32m2_t vacc0 = vle32_v_f32m2(w, 8); // 1st row count
-        vfloat32m2_t vacc1 = vle32_v_f32m2(w, 8); // 1st row count
-        vfloat32m2_t vacc2 = vle32_v_f32m2(w, 8); // 1st row count
-        vfloat32m2_t vacc3 = vle32_v_f32m2(w, 8); // 1st row count
-        w += 8;
-        for(size_t k = 0; k < kcl ; k++){
-            vfloat32m2_t vw = vle32_v_f32m2(w, 8);
-            w += 8;
-            vacc0 = vfmacc_vf_f32m2(vacc0, *a0, vw, 8); // update 1st row count
-            vacc1 = vfmacc_vf_f32m2(vacc1, *a1, vw, 8); // update 1st row count
-            vacc2 = vfmacc_vf_f32m2(vacc2, *a2, vw, 8); // update 1st row count
-            vacc3 = vfmacc_vf_f32m2(vacc3, *a3, vw, 8); // update 1st row count
-            a0++;
-            a1++;
-            a2++;
-            a3++;
-        }
-        vacc0 = vfmax_vf_f32m2(vacc0, 0.0f, vl);
-        vacc1 = vfmax_vf_f32m2(vacc1, 0.0f, vl);
-        vacc2 = vfmax_vf_f32m2(vacc2, 0.0f, vl);
-        vacc3 = vfmax_vf_f32m2(vacc3, 0.0f, vl);
+        size_t vl = vsetvl_e32m4(nc); // vector length
+        vfloat32m4_t vacc0 = vle32_v_f32m4(w, 16); // 1st row count
+        vfloat32m4_t vacc1 = vle32_v_f32m4(w, 16); // 1st row count
+        vfloat32m4_t vacc2 = vle32_v_f32m4(w, 16); // 1st row count
+        vfloat32m4_t vacc3 = vle32_v_f32m4(w, 16); // 1st row count
+        w += 16;
 
-        vse32_v_f32m2(c0, vacc0, vl); // store 1st row result
-        vse32_v_f32m2(c1, vacc1, vl); // store 1st row result
-        vse32_v_f32m2(c2, vacc2, vl); // store 1st row result
-        vse32_v_f32m2(c3, vacc3, vl); // store 1st row result
-        if(nc >= 4){
-            c0 = (float*) ((uintptr_t) c0 + cn_stride); // update 1st row matrix C pointer
-            c1 = (float*) ((uintptr_t) c1 + cn_stride); // update 1st row matrix C pointer
-            c2 = (float*) ((uintptr_t) c2 + cn_stride); // update 1st row matrix C pointer
-            c3 = (float*) ((uintptr_t) c3 + cn_stride); // update 1st row matrix C pointer
-            a0 = (const void*) ((uintptr_t) a0 - kc); // update 1st row matrix A pointer
-            a1 = (const void*) ((uintptr_t) a1 - kc); // update 1st row matrix A pointer
-            a2 = (const void*) ((uintptr_t) a2 - kc); // update 1st row matrix A pointer
-            a3 = (const void*) ((uintptr_t) a3 - kc); // update 1st row matrix A pointer
+        size_t p = ks;
+        size_t kcl = kc / sizeof(float);
+        do {
+            const float* restrict a0 = a[0];
+            assert(a0 != NULL);
+            if XNN_UNPREDICTABLE(a0 != zero) {
+                a0 = (const float*) ((uintptr_t) a0 + a_offset);
+            }
+            const float* restrict a1 = a[1];
+            assert(a1 != NULL);
+            if XNN_UNPREDICTABLE(a1 != zero) {
+                a1 = (const float*) ((uintptr_t) a1 + a_offset);
+            }
+            const float* restrict a2 = a[2];
+            assert(a2 != NULL);
+            if XNN_UNPREDICTABLE(a2 != zero) {
+                a2 = (const float*) ((uintptr_t) a2 + a_offset);
+            }
+            const float* restrict a3 = a[3];
+            assert(a3 != NULL);
+            if XNN_UNPREDICTABLE(a3 != zero) {
+                a3 = (const float*) ((uintptr_t) a3 + a_offset);
+            }
+            a += 4;
+
+            size_t k = kc;
+            for(size_t k = 0; k < kcl ; k++){
+                vfloat32m4_t vw = vle32_v_f32m4(w, 16);
+                w += 16;
+                vacc0 = vfmacc_vf_f32m4(vacc0, *a0, vw, 16); // update 1st row count
+                vacc1 = vfmacc_vf_f32m4(vacc1, *a1, vw, 16); // update 1st row count
+                vacc2 = vfmacc_vf_f32m4(vacc2, *a2, vw, 16); // update 1st row count
+                vacc3 = vfmacc_vf_f32m4(vacc3, *a3, vw, 16); // update 1st row count
+                a0++;
+                a1++;
+                a2++;
+                a3++;
+            }
+            p -= 4 * sizeof(void*);
+        } while (p != 0);
+        vacc0 = vfmax_vf_f32m2(vacc0, vmin, vl);
+        vacc1 = vfmax_vf_f32m2(vacc1, vmin, vl);
+        vacc2 = vfmax_vf_f32m2(vacc2, vmin, vl);
+        vacc3 = vfmax_vf_f32m2(vacc3, vmin, vl);
+
+        vacc0 = vfmin_vf_f32m2(vacc0, vmax, vl);
+        vacc1 = vfmin_vf_f32m2(vacc1, vmax, vl);
+        vacc2 = vfmin_vf_f32m2(vacc2, vmax, vl);
+        vacc3 = vfmin_vf_f32m2(vacc3, vmax, vl);
+
+        vse32_v_f32m4(c0, vacc0, vl); // store 1st row result
+        vse32_v_f32m4(c1, vacc1, vl); // store 1st row result
+        vse32_v_f32m4(c2, vacc2, vl); // store 1st row result
+        vse32_v_f32m4(c3, vacc3, vl); // store 1st row result
+
+        if XNN_LIKELY(nc >= 4) {
+            c3 = (float*) ((uintptr_t) c3 + cn_stride);
+            c2 = (float*) ((uintptr_t) c2 + cn_stride);
+            c1 = (float*) ((uintptr_t) c1 + cn_stride);
+            c0 = (float*) ((uintptr_t) c0 + cn_stride);
+
+            a = (const float**restrict) ((uintptr_t) a - ks);
         }
         nc -= vl;
     } while (nc != 0);
+}
+
+void xnn_f32_igemm_ukernel_1x32__rvv_u8v(
+        size_t mr,
+        size_t nc,
+        size_t kc,
+        size_t ks,
+        const float** restrict a,
+        const float* restrict w,
+        float* restrict c,
+        size_t cm_stride,
+        size_t cn_stride,
+        size_t a_offset,
+        const float* zero,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+     assert(mr != 0);
+    assert(mr <= 1);
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(ks != 0);
+    assert(ks % (1 * sizeof(void*)) == 0);
+    assert(a_offset % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    float* c0 = c;
+
+    const float vmin = params->scalar.min;
+    const float vmax = params->scalar.max;
+
+    do {
+        size_t vl = vsetvl_e32m8(nc); // vector length
+        vfloat32m8_t vacc0 = vle32_v_f32m8(w, 32); // 1st row count
+        w += 32;
+
+        size_t p = ks;
+        size_t kcl = kc / sizeof(float);
+
+        do {
+             const float* restrict a0 = a[0];
+            assert(a0 != NULL);
+            if XNN_UNPREDICTABLE(a0 != zero) {
+                a0 = (const float*) ((uintptr_t) a0 + a_offset);
+            }
+            a += 1;
+
+            size_t k = kc;
+            for(size_t k = 0; k < kcl ; k++){
+                vfloat32m2_t vw = vle32_v_f32m8(w, 32);
+                w += 32;
+                vacc0 = vfmacc_vf_f32m8(vacc0, *a0, vw, 32); // update 1st row count
+                a0++;
+            }
+            p -= 1 * sizeof(void*);
+        } while (p != 0);
+        vacc0 = vfmax_vf_f32m2(vacc0, vmin, vl);
+        vacc0 = vfmin_vf_f32m2(vacc0, vmax, vl);
+        vse32_v_f32m8(c0, vacc0, vl); // store 1st row result
+
+        if XNN_LIKELY(nc >= 4) {
+            c0 = (float*) ((uintptr_t) c0 + cn_stride);
+            a = (const float**restrict) ((uintptr_t) a - ks);
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+void xnn_f32_igemm_minmax_ukernel_4x32__rvv_u8v(
+    size_t mr,
+    size_t nc,
+    size_t kc,
+    size_t ks,
+    const float** restrict a,
+    const float* restrict w,
+    float* restrict c,
+    size_t cm_stride,
+    size_t cn_stride,
+    size_t a_offset,const float* zero,
+    const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 4);
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(ks != 0);
+    assert(ks % (4 * sizeof(void*)) == 0);
+    assert(a_offset % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    float* c0 = c;
+    float* c1 = (float*) ((uintptr_t) c0 + cm_stride);
+    if XNN_UNPREDICTABLE(mr < 2) {
+        c1 = c0;
+    }
+    float* c2 = (float*) ((uintptr_t) c1 + cm_stride);
+    if XNN_UNPREDICTABLE(mr <= 2) {
+        c2 = c1;
+    }
+    float* c3 = (float*) ((uintptr_t) c2 + cm_stride);
+    if XNN_UNPREDICTABLE(mr != 4) {
+        c3 = c2;
+    }
+
+    const float vmin = params->scalar.min;
+    const float vmax = params->scalar.max;
+
+    do {
+        size_t vl = vsetvl_e32m8(nc); // vector length
+        vfloat32m8_t vacc0 = vle32_v_f32m8(w, 32); // 1st row count
+        vfloat32m8_t vacc1 = vle32_v_f32m8(w, 32); // 1st row count
+        vfloat32m8_t vacc2 = vle32_v_f32m8(w, 32); // 1st row count
+        vfloat32m8_t vacc3 = vle32_v_f32m8(w, 32); // 1st row count
+
+        w += 32;
+
+        size_t p = ks;
+        size_t kcl = kc / sizeof(float);
+        do {
+            const float* restrict a0 = a[0];
+            assert(a0 != NULL);
+            if XNN_UNPREDICTABLE(a0 != zero) {
+                a0 = (const float*) ((uintptr_t) a0 + a_offset);
+            }
+            const float* restrict a1 = a[1];
+            assert(a1 != NULL);
+            if XNN_UNPREDICTABLE(a1 != zero) {
+                a1 = (const float*) ((uintptr_t) a1 + a_offset);
+            }
+            const float* restrict a2 = a[2];
+            assert(a2 != NULL);
+            if XNN_UNPREDICTABLE(a2 != zero) {
+                a2 = (const float*) ((uintptr_t) a2 + a_offset);
+            }
+            const float* restrict a3 = a[3];
+            assert(a3 != NULL);
+            if XNN_UNPREDICTABLE(a3 != zero) {
+                a3 = (const float*) ((uintptr_t) a3 + a_offset);
+            }
+            a += 4;
+
+            size_t k = kc;
+            for(size_t k = 0; k < kcl ; k++){
+                vfloat32m8_t vw = vle32_v_f32m8(w, 32);
+                w += 32;
+                vacc0 = vfmacc_vf_f32m8(vacc0, *a0, vw, 32); // update 1st row count
+                vacc1 = vfmacc_vf_f32m8(vacc1, *a1, vw, 32); // update 1st row count
+                vacc2 = vfmacc_vf_f32m8(vacc2, *a2, vw, 32); // update 1st row count
+                vacc3 = vfmacc_vf_f32m8(vacc3, *a3, vw, 32); // update 1st row count
+                a0++;
+                a1++;
+                a2++;
+                a3++;
+            }
+            p -= 4 * sizeof(void*);
+        } while (p != 0);
+        vacc0 = vfmax_vf_f32m2(vacc0, vmin, vl);
+        vacc1 = vfmax_vf_f32m2(vacc1, vmin, vl);
+        vacc2 = vfmax_vf_f32m2(vacc2, vmin, vl);
+        vacc3 = vfmax_vf_f32m2(vacc3, vmin, vl);
+
+        vacc0 = vfmin_vf_f32m2(vacc0, vmax, vl);
+        vacc1 = vfmin_vf_f32m2(vacc1, vmax, vl);
+        vacc2 = vfmin_vf_f32m2(vacc2, vmax, vl);
+        vacc3 = vfmin_vf_f32m2(vacc3, vmax, vl);
+        vse32_v_f32m8(c0, vacc0, vl); // store 1st row result
+        vse32_v_f32m8(c1, vacc1, vl); // store 1st row result
+        vse32_v_f32m8(c2, vacc2, vl); // store 1st row result
+        vse32_v_f32m8(c3, vacc3, vl); // store 1st row result
+
+        if XNN_LIKELY(nc >= 4) {
+            c3 = (float*) ((uintptr_t) c3 + cn_stride);
+            c2 = (float*) ((uintptr_t) c2 + cn_stride);
+            c1 = (float*) ((uintptr_t) c1 + cn_stride);
+            c0 = (float*) ((uintptr_t) c0 + cn_stride);
+
+            a = (const float**restrict) ((uintptr_t) a - ks);
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+
+
+void xnn_f32_igemm_relu_ukernel_1x4__rvv_u1v(
+    size_t mr,
+    size_t nc,
+    size_t kc,
+    size_t ks,
+    const float** restrict a,
+    const float* restrict w,
+    float* restrict c,
+    size_t cm_stride,
+    size_t cn_stride,
+    size_t a_offset,
+    const float* zero,
+    const union xnn_f32_relu_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 1);
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(ks != 0);
+    assert(ks % (1 * sizeof(void*)) == 0);
+    assert(a_offset % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    float* c0 = c;
+
+    do {
+        size_t vl = vsetvl_e32m1(nc); // vector length
+        vfloat32m1_t vacc0 = vle32_v_f32m1(w, 4); // 1st row count
+        w += 4;
+
+         size_t p = ks;
+        size_t kcl = kc / sizeof(float);
+        do {
+             const float* restrict a0 = a[0];
+            assert(a0 != NULL);
+            if XNN_UNPREDICTABLE(a0 != zero) {
+                a0 = (const float*) ((uintptr_t) a0 + a_offset);
+            }
+            a += 1;
+
+            size_t k = kc;
+            for(size_t k = 0; k < kcl ; k++){
+                vfloat32m2_t vw = vle32_v_f32m1(w, 4);
+                w += 4;
+                vacc0 = vfmacc_vf_f32m1(vacc0, *a0, vw, 4); // update 1st row count
+                a0++;
+            }
+            p -= 1 * sizeof(void*);
+        } while (p != 0);
+        vacc0 = vfmax_vf_f32m1(vacc0, 0.0f, vl);
+        vse32_v_f32m1(c0, vacc0, vl); // store 1st row result
+
+        if XNN_LIKELY(nc >= 4) {
+            c0 = (float*) ((uintptr_t) c0 + cn_stride);
+            a = (const float**restrict) ((uintptr_t) a - ks);
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+
+void xnn_f32_igemm_relu_ukernel_4x4__rvv_u1v(
+    size_t mr,
+    size_t nc,
+    size_t kc,
+    size_t ks,
+    const float** restrict a,
+    const float* restrict w,
+    float* restrict c,
+    size_t cm_stride,
+    size_t cn_stride,
+    size_t a_offset,const float* zero,
+    const union xnn_f32_relu_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 4);
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(ks != 0);
+    assert(ks % (4 * sizeof(void*)) == 0);
+    assert(a_offset % sizeof(float) == 0);
+    assert(a != NULL);
+    assert(w != NULL);
+    assert(c != NULL);
+
+    float* c0 = c;
+    float* c1 = (float*) ((uintptr_t) c0 + cm_stride);
+    if XNN_UNPREDICTABLE(mr < 2) {
+        c1 = c0;
+    }
+    float* c2 = (float*) ((uintptr_t) c1 + cm_stride);
+    if XNN_UNPREDICTABLE(mr <= 2) {
+        c2 = c1;
+    }
+    float* c3 = (float*) ((uintptr_t) c2 + cm_stride);
+    if XNN_UNPREDICTABLE(mr != 4) {
+        c3 = c2;
+    }
+
+    do {
+        size_t vl = vsetvl_e32m1(nc); // vector length
+        vfloat32m1_t vacc0 = vle32_v_f32m1(w, 4); // 1st row count
+        vfloat32m1_t vacc1 = vle32_v_f32m1(w, 4); // 1st row count
+        vfloat32m1_t vacc2 = vle32_v_f32m1(w, 4); // 1st row count
+        vfloat32m1_t vacc3 = vle32_v_f32m1(w, 4); // 1st row count
+        w += 4;
+
+        size_t p = ks;
+        size_t kcl = kc / sizeof(float);
+
+        do {
+            const float* restrict a0 = a[0];
+            assert(a0 != NULL);
+            if XNN_UNPREDICTABLE(a0 != zero) {
+                a0 = (const float*) ((uintptr_t) a0 + a_offset);
+            }
+            const float* restrict a1 = a[1];
+            assert(a1 != NULL);
+            if XNN_UNPREDICTABLE(a1 != zero) {
+                a1 = (const float*) ((uintptr_t) a1 + a_offset);
+            }
+            const float* restrict a2 = a[2];
+            assert(a2 != NULL);
+            if XNN_UNPREDICTABLE(a2 != zero) {
+                a2 = (const float*) ((uintptr_t) a2 + a_offset);
+            }
+            const float* restrict a3 = a[3];
+            assert(a3 != NULL);
+            if XNN_UNPREDICTABLE(a3 != zero) {
+                a3 = (const float*) ((uintptr_t) a3 + a_offset);
+            }
+            a += 4;
+
+            size_t k = kc;
+            for(size_t k = 0; k < kcl ; k++){
+                vfloat32m1_t vw = vle32_v_f32m1(w, 4);
+                w += 4;
+                vacc0 = vfmacc_vf_f32m1(vacc0, *a0, vw, 4); // update 1st row count
+                vacc1 = vfmacc_vf_f32m1(vacc1, *a1, vw, 4); // update 1st row count
+                vacc2 = vfmacc_vf_f32m1(vacc2, *a2, vw, 4); // update 1st row count
+                vacc3 = vfmacc_vf_f32m1(vacc3, *a3, vw, 4); // update 1st row count
+                a0++;
+                a1++;
+                a2++;
+                a3++;
+            }
+            p -= 4 * sizeof(void*);     
+        } while (p != 0);
+        vacc0 = vfmax_vf_f32m1(vacc0, 0.0f, vl);
+        vacc1 = vfmax_vf_f32m1(vacc1, 0.0f, vl);
+        vacc2 = vfmax_vf_f32m1(vacc2, 0.0f, vl);
+        vacc3 = vfmax_vf_f32m1(vacc3, 0.0f, vl);
+
+        vse32_v_f32m1(c0, vacc0, vl); // store 1st row result
+        vse32_v_f32m1(c1, vacc1, vl); // store 1st row result
+        vse32_v_f32m1(c2, vacc2, vl); // store 1st row result
+        vse32_v_f32m1(c3, vacc3, vl); // store 1st row result
+
+        if XNN_LIKELY(nc >= 4) {
+            c3 = (float*) ((uintptr_t) c3 + cn_stride);
+            c2 = (float*) ((uintptr_t) c2 + cn_stride);
+            c1 = (float*) ((uintptr_t) c1 + cn_stride);
+            c0 = (float*) ((uintptr_t) c0 + cn_stride);
+
+            a = (const float**restrict) ((uintptr_t) a - ks);
+        }
+        nc -= vl;
+    } while (nc!=0);
 }
 
 void xnn_f32_igemm_relu_ukernel_1x8__rvv_u2v(
@@ -2703,7 +6293,70 @@ void xnn_f32_igemm_relu_ukernel_4x8__rvv_u2v(
     } while (nc != 0);
 }
 
-void xnn_f32_igemm_ukernel_4x16__rvv_u4v(
+void xnn_f32_igemm_relu_ukernel_1x16__rvv_u4v(
+        size_t mr,
+        size_t nc,
+        size_t kc,
+        size_t ks,
+        const float** restrict a,
+        const float* restrict w,
+        float* restrict c,
+        size_t cm_stride,
+        size_t cn_stride,
+        size_t a_offset,
+        const float* zero,
+        const union xnn_f32_relu_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(mr != 0);
+    assert(mr <= 1);
+    assert(nc != 0);
+    assert(kc != 0);
+    assert(kc % sizeof(float) == 0);
+    assert(ks != 0);
+    assert(ks % (1 * sizeof(void*)) == 0);
+    assert(a_offset % sizeof(float) == 0);
+    assert(a!= NULL);
+    assert(w!= NULL);
+    assert(c!= NULL);
+
+    float* c0 = c;
+
+    do {
+        size_t vl = vsetvl_e32m4(nc); // vector length
+        vfloat32m4_t vacc0 = vle32_v_f32m4(w, 16); // 1st row count
+        w += 16;
+
+        size_t p = ks;
+        size_t kcl = kc / sizeof(float);
+        do {
+            const float* restrict a0 = a[0];
+            assert(a0 != NULL);
+            if XNN_UNPREDICTABLE(a0 != zero) {
+                a0 = (const float*) ((uintptr_t) a0 + a_offset);
+            }
+            a += 1;
+
+            size_t k = kc;
+            for(size_t k = 0; k < kcl ; k++){
+                vfloat32m4_t vw = vle32_v_f32m4(w, 16);
+                w += 16;
+                vacc0 = vfmacc_vf_f32m4(vacc0, *a0, vw, 16); // update 1st row count
+                a0++;
+            }
+            p -= 1 * sizeof(void*);
+        } while (p != 0);
+        vacc0 = vfmax_vf_f32m4(vacc0, 0.0f, vl);
+        vse32_v_f32m4(c0, vacc0, vl); // store 1st row result
+
+        if XNN_LIKELY(nc >= 4) {
+            c0 = (float*) ((uintptr_t) c0 + cn_stride);
+            a = (const float**restrict) ((uintptr_t) a - ks);
+        }
+        nc -= vl;
+    } while (nc != 0);
+}
+
+void xnn_f32_igemm_relu_ukernel_4x16__rvv_u4v(
         size_t mr,
         size_t nc,
         size_t kc,
@@ -2714,7 +6367,7 @@ void xnn_f32_igemm_ukernel_4x16__rvv_u4v(
         size_t cm_stride,
         size_t cn_stride,
         size_t a_offset,const float* zero,
-        const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+        const union xnn_f32_relu_params params[restrict XNN_MIN_ELEMENTS(1)])
 {
     assert(mr != 0);
     assert(mr <= 4);
@@ -2790,6 +6443,11 @@ void xnn_f32_igemm_ukernel_4x16__rvv_u4v(
             }
             p -= 4 * sizeof(void*);
         } while (p != 0);
+        vacc0 = vfmax_vf_f32m4(vacc0, 0.0f, vl);
+        vacc1 = vfmax_vf_f32m4(vacc1, 0.0f, vl);
+        vacc2 = vfmax_vf_f32m4(vacc2, 0.0f, vl);
+        vacc3 = vfmax_vf_f32m4(vacc3, 0.0f, vl);
+
         vse32_v_f32m4(c0, vacc0, vl); // store 1st row result
         vse32_v_f32m4(c1, vacc1, vl); // store 1st row result
         vse32_v_f32m4(c2, vacc2, vl); // store 1st row result
@@ -2807,130 +6465,184 @@ void xnn_f32_igemm_ukernel_4x16__rvv_u4v(
     } while (nc != 0);
 }
 
-void xnn_f32_gemm_ukernel_1x16__rvv_u4v(
+
+void xnn_f32_igemm_relu_ukernel_1x32__rvv_u8v(
         size_t mr,
         size_t nc,
         size_t kc,
-        const float* restrict a,
-        size_t a_stride,
+        size_t ks,
+        const float** restrict a,
         const float* restrict w,
         float* restrict c,
         size_t cm_stride,
         size_t cn_stride,
+        size_t a_offset,
+        const float* zero,
         const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
 {
-    assert(mr != 0);
+     assert(mr != 0);
     assert(mr <= 1);
     assert(nc != 0);
     assert(kc != 0);
     assert(kc % sizeof(float) == 0);
+    assert(ks != 0);
+    assert(ks % (1 * sizeof(void*)) == 0);
+    assert(a_offset % sizeof(float) == 0);
     assert(a != NULL);
     assert(w != NULL);
     assert(c != NULL);
 
-    const float* a0 = a;
     float* c0 = c;
-    size_t kcl = kc / sizeof(float);
 
     do {
-        size_t vl = vsetvl_e32m4(nc);
-        vfloat32m4_t vacc = vle32_v_f32m4(w, 16);
-        w += 16;
-        for(size_t k = 0; k < kcl ; k++){
-            vfloat32m4_t vw = vle32_v_f32m4(w, 16);
-            w += 16;
-            vacc = vfmacc_vf_f32m4(vacc, *a0, vw, 16);
-            a0++;
-        }
-        vse32_v_f32m4(c0, vacc, vl);
-        if(nc >= 4){
+        size_t vl = vsetvl_e32m8(nc); // vector length
+        vfloat32m8_t vacc0 = vle32_v_f32m8(w, 32); // 1st row count
+        w += 32;
+
+        size_t p = ks;
+        size_t kcl = kc / sizeof(float);
+
+        do {
+             const float* restrict a0 = a[0];
+            assert(a0 != NULL);
+            if XNN_UNPREDICTABLE(a0 != zero) {
+                a0 = (const float*) ((uintptr_t) a0 + a_offset);
+            }
+            a += 1;
+
+            size_t k = kc;
+            for(size_t k = 0; k < kcl ; k++){
+                vfloat32m2_t vw = vle32_v_f32m8(w, 32);
+                w += 32;
+                vacc0 = vfmacc_vf_f32m8(vacc0, *a0, vw, 32); // update 1st row count
+                a0++;
+            }
+            p -= 1 * sizeof(void*);
+        } while (p != 0);
+        vacc0 = vfmax_vf_f32m8(vacc0, 0.0f, vl);
+        vse32_v_f32m8(c0, vacc0, vl); // store 1st row result
+
+        if XNN_LIKELY(nc >= 4) {
             c0 = (float*) ((uintptr_t) c0 + cn_stride);
-            a0 = (const void*) ((uintptr_t) a0 - kc);
+            a = (const float**restrict) ((uintptr_t) a - ks);
         }
         nc -= vl;
     } while (nc != 0);
 }
 
-void xnn_f32_gemm_ukernel_4x16__rvv_u4v(
-        size_t mr,
-        size_t nc,
-        size_t kc,
-        const float* restrict a,
-        size_t a_stride,
-        const float* restrict w,
-        float* restrict c,
-        size_t cm_stride,
-        size_t cn_stride,
-        const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
+
+void xnn_f32_igemm_relu_ukernel_4x32__rvv_u8v(
+    size_t mr,
+    size_t nc,
+    size_t kc,
+    size_t ks,
+    const float** restrict a,
+    const float* restrict w,
+    float* restrict c,
+    size_t cm_stride,
+    size_t cn_stride,
+    size_t a_offset,const float* zero,
+    const union xnn_f32_relu_params params[restrict XNN_MIN_ELEMENTS(1)])
 {
     assert(mr != 0);
-    assert(mr <= 4); // max process 1 row
+    assert(mr <= 4);
     assert(nc != 0);
     assert(kc != 0);
     assert(kc % sizeof(float) == 0);
+    assert(ks != 0);
+    assert(ks % (4 * sizeof(void*)) == 0);
+    assert(a_offset % sizeof(float) == 0);
     assert(a != NULL);
     assert(w != NULL);
     assert(c != NULL);
 
-    const float* a0 = a;
     float* c0 = c;
-    const float* a1 = (const float*) ((uintptr_t) a0 + a_stride);
     float* c1 = (float*) ((uintptr_t) c0 + cm_stride);
     if XNN_UNPREDICTABLE(mr < 2) {
-        a1 = a0;
         c1 = c0;
     }
-    const float* a2 = (const float*) ((uintptr_t) a1 + a_stride);
     float* c2 = (float*) ((uintptr_t) c1 + cm_stride);
     if XNN_UNPREDICTABLE(mr <= 2) {
-        a2 = a1;
         c2 = c1;
     }
-    const float* a3 = (const float*) ((uintptr_t) a2 + a_stride);
     float* c3 = (float*) ((uintptr_t) c2 + cm_stride);
     if XNN_UNPREDICTABLE(mr != 4) {
-        a3 = a2;
         c3 = c2;
     }
 
-    size_t kcl = kc / sizeof(float);
-
     do {
-        size_t vl = vsetvl_e32m4(nc); // vector length
-        vfloat32m4_t vacc0 = vle32_v_f32m4(w, 16); // 1st row count
-        vfloat32m4_t vacc1 = vle32_v_f32m4(w, 16); // 1st row count
-        vfloat32m4_t vacc2 = vle32_v_f32m4(w, 16); // 1st row count
-        vfloat32m4_t vacc3 = vle32_v_f32m4(w, 16); // 1st row count
-        w += 16;
-        for(size_t k = 0; k < kcl ; k++){
-            vfloat32m4_t vw = vle32_v_f32m4(w, 16);
-            w += 16;
-            vacc0 = vfmacc_vf_f32m4(vacc0, *a0, vw, 16); // update 1st row count
-            vacc1 = vfmacc_vf_f32m4(vacc1, *a1, vw, 16); // update 1st row count
-            vacc2 = vfmacc_vf_f32m4(vacc2, *a2, vw, 16); // update 1st row count
-            vacc3 = vfmacc_vf_f32m4(vacc3, *a3, vw, 16); // update 1st row count
-            a0++;
-            a1++;
-            a2++;
-            a3++;
-        }
-        vse32_v_f32m4(c0, vacc0, vl); // store 1st row result
-        vse32_v_f32m4(c1, vacc1, vl); // store 1st row result
-        vse32_v_f32m4(c2, vacc2, vl); // store 1st row result
-        vse32_v_f32m4(c3, vacc3, vl); // store 1st row result
-        if(nc >= 4){
-            c0 = (float*) ((uintptr_t) c0 + cn_stride); // update 1st row matrix C pointer
-            c1 = (float*) ((uintptr_t) c1 + cn_stride); // update 1st row matrix C pointer
-            c2 = (float*) ((uintptr_t) c2 + cn_stride); // update 1st row matrix C pointer
-            c3 = (float*) ((uintptr_t) c3 + cn_stride); // update 1st row matrix C pointer
-            a0 = (const void*) ((uintptr_t) a0 - kc); // update 1st row matrix A pointer
-            a1 = (const void*) ((uintptr_t) a1 - kc); // update 1st row matrix A pointer
-            a2 = (const void*) ((uintptr_t) a2 - kc); // update 1st row matrix A pointer
-            a3 = (const void*) ((uintptr_t) a3 - kc); // update 1st row matrix A pointer
+        size_t vl = vsetvl_e32m8(nc); // vector length
+        vfloat32m8_t vacc0 = vle32_v_f32m8(w, 32); // 1st row count
+        vfloat32m8_t vacc1 = vle32_v_f32m8(w, 32); // 1st row count
+        vfloat32m8_t vacc2 = vle32_v_f32m8(w, 32); // 1st row count
+        vfloat32m8_t vacc3 = vle32_v_f32m8(w, 32); // 1st row count
+
+        w += 32;
+
+        size_t p = ks;
+        size_t kcl = kc / sizeof(float);
+        do {
+            const float* restrict a0 = a[0];
+            assert(a0 != NULL);
+            if XNN_UNPREDICTABLE(a0 != zero) {
+                a0 = (const float*) ((uintptr_t) a0 + a_offset);
+            }
+            const float* restrict a1 = a[1];
+            assert(a1 != NULL);
+            if XNN_UNPREDICTABLE(a1 != zero) {
+                a1 = (const float*) ((uintptr_t) a1 + a_offset);
+            }
+            const float* restrict a2 = a[2];
+            assert(a2 != NULL);
+            if XNN_UNPREDICTABLE(a2 != zero) {
+                a2 = (const float*) ((uintptr_t) a2 + a_offset);
+            }
+            const float* restrict a3 = a[3];
+            assert(a3 != NULL);
+            if XNN_UNPREDICTABLE(a3 != zero) {
+                a3 = (const float*) ((uintptr_t) a3 + a_offset);
+            }
+            a += 4;
+
+            size_t k = kc;
+            for(size_t k = 0; k < kcl ; k++){
+                vfloat32m8_t vw = vle32_v_f32m8(w, 32);
+                w += 32;
+                vacc0 = vfmacc_vf_f32m8(vacc0, *a0, vw, 32); // update 1st row count
+                vacc1 = vfmacc_vf_f32m8(vacc1, *a1, vw, 32); // update 1st row count
+                vacc2 = vfmacc_vf_f32m8(vacc2, *a2, vw, 32); // update 1st row count
+                vacc3 = vfmacc_vf_f32m8(vacc3, *a3, vw, 32); // update 1st row count
+                a0++;
+                a1++;
+                a2++;
+                a3++;
+            }
+            p -= 4 * sizeof(void*);
+        } while (p != 0);
+        vacc0 = vfmax_vf_f32m8(vacc0, 0.0f, vl);
+        vacc1 = vfmax_vf_f32m8(vacc1, 0.0f, vl);
+        vacc2 = vfmax_vf_f32m8(vacc2, 0.0f, vl);
+        vacc3 = vfmax_vf_f32m8(vacc3, 0.0f, vl);
+        vse32_v_f32m8(c0, vacc0, vl); // store 1st row result
+        vse32_v_f32m8(c1, vacc1, vl); // store 1st row result
+        vse32_v_f32m8(c2, vacc2, vl); // store 1st row result
+        vse32_v_f32m8(c3, vacc3, vl); // store 1st row result
+
+        if XNN_LIKELY(nc >= 4) {
+            c3 = (float*) ((uintptr_t) c3 + cn_stride);
+            c2 = (float*) ((uintptr_t) c2 + cn_stride);
+            c1 = (float*) ((uintptr_t) c1 + cn_stride);
+            c0 = (float*) ((uintptr_t) c0 + cn_stride);
+
+            a = (const float**restrict) ((uintptr_t) a - ks);
         }
         nc -= vl;
     } while (nc != 0);
 }
+
+
+
+//u2v
 
 void xnn_f32_maxpool_minmax_ukernel_9p8x__rvv_u2v(
         size_t output_pixels,
@@ -3148,6 +6860,665 @@ void xnn_f32_vhswish_ukernel__rvv_u2v(
     } while (size > 0);
 }
 
+
+
+
+//u1v
+
+void xnn_f32_maxpool_minmax_ukernel_9p8x__rvv_u1v(
+        size_t output_pixels,
+        size_t kernel_elements,
+        size_t channels,
+        const float** input,
+        size_t input_offset,
+        float* output,
+        size_t input_increment,
+        size_t output_increment,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(output_pixels != 0);
+    assert(kernel_elements != 0);
+    assert(channels != 0);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+    do {
+        float* o = output;
+        {
+            const float* i0 = *input++;
+            const float* i1 = *input++;
+            const float* i2 = *input++;
+            const float* i3 = *input++;
+            const float* i4 = *input++;
+            const float* i5 = *input++;
+            const float* i6 = *input++;
+            const float* i7 = *input++;
+            const float* i8 = *input++;
+            i0 = (const float*) ((uintptr_t) i0 + input_offset);
+            i1 = (const float*) ((uintptr_t) i1 + input_offset);
+            i2 = (const float*) ((uintptr_t) i2 + input_offset);
+            i3 = (const float*) ((uintptr_t) i3 + input_offset);
+            i4 = (const float*) ((uintptr_t) i4 + input_offset);
+            i5 = (const float*) ((uintptr_t) i5 + input_offset);
+            i6 = (const float*) ((uintptr_t) i6 + input_offset);
+            i7 = (const float*) ((uintptr_t) i7 + input_offset);
+            i8 = (const float*) ((uintptr_t) i8 + input_offset);
+            if (kernel_elements < 2) {
+                i1 = i0;
+            }
+            if (kernel_elements <= 2) {
+                i2 = i0;
+            }
+            if (kernel_elements < 4) {
+                i3 = i0;
+            }
+            if (kernel_elements <= 4) {
+                i4 = i0;
+            }
+            if (kernel_elements < 6) {
+                i5 = i0;
+            }
+            if (kernel_elements <= 6) {
+                i6 = i0;
+            }
+            if (kernel_elements < 8) {
+                i7 = i0;
+            }
+            if (kernel_elements <= 8) {
+                i8 = i0;
+            }
+
+            size_t c = channels;
+            do {
+                size_t vl = vsetvl_e32m1(c);
+                vfloat32m1_t vi0 = vle32_v_f32m1(i0, vl); i0 += vl;
+                vfloat32m1_t vi1 = vle32_v_f32m1(i1, vl); i1 += vl;
+                vfloat32m1_t vi2 = vle32_v_f32m1(i2, vl); i2 += vl;
+                vfloat32m1_t vi3 = vle32_v_f32m1(i3, vl); i3 += vl;
+                vfloat32m1_t vi4 = vle32_v_f32m1(i4, vl); i4 += vl;
+                vfloat32m1_t vi5 = vle32_v_f32m1(i5, vl); i5 += vl;
+                vfloat32m1_t vi6 = vle32_v_f32m1(i6, vl); i6 += vl;
+                vfloat32m1_t vi7 = vle32_v_f32m1(i7, vl); i7 += vl;
+                vfloat32m1_t vi8 = vle32_v_f32m1(i8, vl); i8 += vl;
+
+                vfloat32m1_t vmax01 = vfmax_vv_f32m1(vi0, vi1, vl);
+                vfloat32m1_t vmax23 = vfmax_vv_f32m1(vi2, vi3, vl);
+                vfloat32m1_t vmax45 = vfmax_vv_f32m1(vi4, vi5, vl);
+                vfloat32m1_t vmax67 = vfmax_vv_f32m1(vi6, vi7, vl);
+                vfloat32m1_t vmax018 = vfmax_vv_f32m1(vmax01, vi8, vl);
+
+                vfloat32m1_t vmax2345 = vfmax_vv_f32m1(vmax23, vmax45, vl);
+                vfloat32m1_t vmax01678 = vfmax_vv_f32m1(vmax018, vmax67, vl);
+                vfloat32m1_t vout = vfmax_vv_f32m1(vmax2345, vmax01678, vl);
+                vout = vfmax_vf_f32m1(vout, voutput_min, vl);
+                vout = vfmin_vf_f32m1(vout, voutput_max, vl);
+
+                vse32_v_f32m1(o, vout, vl);
+
+                o += vl;
+                c -= vl;
+            } while (c != 0);
+        }
+
+        for (ptrdiff_t k = (ptrdiff_t) kernel_elements - 9; k > 0; k -= 8) {
+            const float* i0 = *input++;
+            const float* i1 = *input++;
+            const float* i2 = *input++;
+            const float* i3 = *input++;
+            const float* i4 = *input++;
+            const float* i5 = *input++;
+            const float* i6 = *input++;
+            const float* i7 = *input++;
+            i0 = (const float*) ((uintptr_t) i0 + input_offset);
+            i1 = (const float*) ((uintptr_t) i1 + input_offset);
+            i2 = (const float*) ((uintptr_t) i2 + input_offset);
+            i3 = (const float*) ((uintptr_t) i3 + input_offset);
+            i4 = (const float*) ((uintptr_t) i4 + input_offset);
+            i5 = (const float*) ((uintptr_t) i5 + input_offset);
+            i6 = (const float*) ((uintptr_t) i6 + input_offset);
+            i7 = (const float*) ((uintptr_t) i7 + input_offset);
+            if (k < 2) {
+                i1 = i0;
+            }
+            if (k <= 2) {
+                i2 = i0;
+            }
+            if (k < 4) {
+                i3 = i0;
+            }
+            if (k <= 4) {
+                i4 = i0;
+            }
+            if (k < 6) {
+                i5 = i0;
+            }
+            if (k <= 6) {
+                i6 = i0;
+            }
+            if (k < 8) {
+                i7 = i0;
+            }
+
+            o = output;
+            size_t c = channels;
+            do {
+                size_t vl = vsetvl_e32m1(c);
+                vfloat32m1_t vi0 = vle32_v_f32m1(i0, vl); i0 += vl;
+                vfloat32m1_t vi1 = vle32_v_f32m1(i1, vl); i1 += vl;
+                vfloat32m1_t vi2 = vle32_v_f32m1(i2, vl); i2 += vl;
+                vfloat32m1_t vi3 = vle32_v_f32m1(i3, vl); i3 += vl;
+                vfloat32m1_t vi4 = vle32_v_f32m1(i4, vl); i4 += vl;
+                vfloat32m1_t vi5 = vle32_v_f32m1(i5, vl); i5 += vl;
+                vfloat32m1_t vi6 = vle32_v_f32m1(i6, vl); i6 += vl;
+                vfloat32m1_t vi7 = vle32_v_f32m1(i7, vl); i7 += vl;
+                vfloat32m1_t vi8 = vle32_v_f32m1(o, vl);
+
+                vfloat32m1_t vmax01 = vfmax_vv_f32m1(vi0, vi1, vl);
+                vfloat32m1_t vmax23 = vfmax_vv_f32m1(vi2, vi3, vl);
+                vfloat32m1_t vmax45 = vfmax_vv_f32m1(vi4, vi5, vl);
+                vfloat32m1_t vmax67 = vfmax_vv_f32m1(vi6, vi7, vl);
+                vfloat32m1_t vmax018 = vfmax_vv_f32m1(vmax01, vi8, vl);
+
+                vfloat32m1_t vmax2345 = vfmax_vv_f32m1(vmax23, vmax45, vl);
+                vfloat32m1_t vmax01678 = vfmax_vv_f32m1(vmax018, vmax67, vl);
+                vfloat32m1_t vout = vfmax_vv_f32m1(vmax2345, vmax01678, vl);
+                vout = vfmax_vf_f32m1(vout, voutput_min, vl);
+                vout = vfmin_vf_f32m1(vout, voutput_max, vl);
+
+                vse32_v_f32m1(o, vout, vl);
+
+                o += vl;
+                c -= vl;
+            } while (c != 0);
+        }
+        input = (const float**) ((uintptr_t) input + input_increment);
+        output = (float*) ((uintptr_t) o + output_increment);
+    } while (--output_pixels != 0);
+}
+
+void xnn_f32_vhswish_ukernel__rvv_u1v(
+        size_t batch,
+        const float* input,
+        float* output,
+        const union xnn_f32_hswish_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input != NULL);
+    assert(output != NULL);
+
+    const float vsixth = params->scalar.sixth;
+    const float vthree = params->scalar.three;
+    const float vsix = params->scalar.six;
+    const float vzero = 0.0f;
+    assert(vthree == 3.0f);
+    assert(vsix == 6.0f);
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m1(size);
+
+        // 加载输入向量
+        vfloat32m1_t vx = vle32_v_f32m1(input, vl);
+        input += vl;
+
+        vfloat32m1_t vacc = vfadd_vf_f32m1(vx, vthree, vl);
+        vx = vfmul_vf_f32m1(vx, vsixth, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m1(vacc, vzero, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m1(vacc, vsix, vl);
+
+        vacc = vfmul_vv_f32m1(vacc, vx, vl);
+
+        // 存储结果
+        vse32_v_f32m1(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+
+//u4v
+
+void xnn_f32_maxpool_minmax_ukernel_9p8x__rvv_u4v(
+        size_t output_pixels,
+        size_t kernel_elements,
+        size_t channels,
+        const float** input,
+        size_t input_offset,
+        float* output,
+        size_t input_increment,
+        size_t output_increment,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(output_pixels != 0);
+    assert(kernel_elements != 0);
+    assert(channels != 0);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+    do {
+        float* o = output;
+        {
+            const float* i0 = *input++;
+            const float* i1 = *input++;
+            const float* i2 = *input++;
+            const float* i3 = *input++;
+            const float* i4 = *input++;
+            const float* i5 = *input++;
+            const float* i6 = *input++;
+            const float* i7 = *input++;
+            const float* i8 = *input++;
+            i0 = (const float*) ((uintptr_t) i0 + input_offset);
+            i1 = (const float*) ((uintptr_t) i1 + input_offset);
+            i2 = (const float*) ((uintptr_t) i2 + input_offset);
+            i3 = (const float*) ((uintptr_t) i3 + input_offset);
+            i4 = (const float*) ((uintptr_t) i4 + input_offset);
+            i5 = (const float*) ((uintptr_t) i5 + input_offset);
+            i6 = (const float*) ((uintptr_t) i6 + input_offset);
+            i7 = (const float*) ((uintptr_t) i7 + input_offset);
+            i8 = (const float*) ((uintptr_t) i8 + input_offset);
+            if (kernel_elements < 2) {
+                i1 = i0;
+            }
+            if (kernel_elements <= 2) {
+                i2 = i0;
+            }
+            if (kernel_elements < 4) {
+                i3 = i0;
+            }
+            if (kernel_elements <= 4) {
+                i4 = i0;
+            }
+            if (kernel_elements < 6) {
+                i5 = i0;
+            }
+            if (kernel_elements <= 6) {
+                i6 = i0;
+            }
+            if (kernel_elements < 8) {
+                i7 = i0;
+            }
+            if (kernel_elements <= 8) {
+                i8 = i0;
+            }
+
+            size_t c = channels;
+            do {
+                size_t vl = vsetvl_e32m4(c);
+                vfloat32m4_t vi0 = vle32_v_f32m4(i0, vl); i0 += vl;
+                vfloat32m4_t vi1 = vle32_v_f32m4(i1, vl); i1 += vl;
+                vfloat32m4_t vi2 = vle32_v_f32m4(i2, vl); i2 += vl;
+                vfloat32m4_t vi3 = vle32_v_f32m4(i3, vl); i3 += vl;
+                vfloat32m4_t vi4 = vle32_v_f32m4(i4, vl); i4 += vl;
+                vfloat32m4_t vi5 = vle32_v_f32m4(i5, vl); i5 += vl;
+                vfloat32m4_t vi6 = vle32_v_f32m4(i6, vl); i6 += vl;
+                vfloat32m4_t vi7 = vle32_v_f32m4(i7, vl); i7 += vl;
+                vfloat32m4_t vi8 = vle32_v_f32m4(i8, vl); i8 += vl;
+
+                vfloat32m4_t vmax01 = vfmax_vv_f32m4(vi0, vi1, vl);
+                vfloat32m4_t vmax23 = vfmax_vv_f32m4(vi2, vi3, vl);
+                vfloat32m4_t vmax45 = vfmax_vv_f32m4(vi4, vi5, vl);
+                vfloat32m4_t vmax67 = vfmax_vv_f32m4(vi6, vi7, vl);
+                vfloat32m4_t vmax018 = vfmax_vv_f32m4(vmax01, vi8, vl);
+
+                vfloat32m4_t vmax2345 = vfmax_vv_f32m4(vmax23, vmax45, vl);
+                vfloat32m4_t vmax01678 = vfmax_vv_f32m4(vmax018, vmax67, vl);
+                vfloat32m4_t vout = vfmax_vv_f32m4(vmax2345, vmax01678, vl);
+                vout = vfmax_vf_f32m4(vout, voutput_min, vl);
+                vout = vfmin_vf_f32m4(vout, voutput_max, vl);
+
+                vse32_v_f32m4(o, vout, vl);
+
+                o += vl;
+                c -= vl;
+            } while (c != 0);
+        }
+
+        for (ptrdiff_t k = (ptrdiff_t) kernel_elements - 9; k > 0; k -= 8) {
+            const float* i0 = *input++;
+            const float* i1 = *input++;
+            const float* i2 = *input++;
+            const float* i3 = *input++;
+            const float* i4 = *input++;
+            const float* i5 = *input++;
+            const float* i6 = *input++;
+            const float* i7 = *input++;
+            i0 = (const float*) ((uintptr_t) i0 + input_offset);
+            i1 = (const float*) ((uintptr_t) i1 + input_offset);
+            i2 = (const float*) ((uintptr_t) i2 + input_offset);
+            i3 = (const float*) ((uintptr_t) i3 + input_offset);
+            i4 = (const float*) ((uintptr_t) i4 + input_offset);
+            i5 = (const float*) ((uintptr_t) i5 + input_offset);
+            i6 = (const float*) ((uintptr_t) i6 + input_offset);
+            i7 = (const float*) ((uintptr_t) i7 + input_offset);
+            if (k < 2) {
+                i1 = i0;
+            }
+            if (k <= 2) {
+                i2 = i0;
+            }
+            if (k < 4) {
+                i3 = i0;
+            }
+            if (k <= 4) {
+                i4 = i0;
+            }
+            if (k < 6) {
+                i5 = i0;
+            }
+            if (k <= 6) {
+                i6 = i0;
+            }
+            if (k < 8) {
+                i7 = i0;
+            }
+
+            o = output;
+            size_t c = channels;
+            do {
+                size_t vl = vsetvl_e32m4(c);
+                vfloat32m4_t vi0 = vle32_v_f32m4(i0, vl); i0 += vl;
+                vfloat32m4_t vi1 = vle32_v_f32m4(i1, vl); i1 += vl;
+                vfloat32m4_t vi2 = vle32_v_f32m4(i2, vl); i2 += vl;
+                vfloat32m4_t vi3 = vle32_v_f32m4(i3, vl); i3 += vl;
+                vfloat32m4_t vi4 = vle32_v_f32m4(i4, vl); i4 += vl;
+                vfloat32m4_t vi5 = vle32_v_f32m4(i5, vl); i5 += vl;
+                vfloat32m4_t vi6 = vle32_v_f32m4(i6, vl); i6 += vl;
+                vfloat32m4_t vi7 = vle32_v_f32m4(i7, vl); i7 += vl;
+                vfloat32m4_t vi8 = vle32_v_f32m4(o, vl);
+
+                vfloat32m4_t vmax01 = vfmax_vv_f32m4(vi0, vi1, vl);
+                vfloat32m4_t vmax23 = vfmax_vv_f32m4(vi2, vi3, vl);
+                vfloat32m4_t vmax45 = vfmax_vv_f32m4(vi4, vi5, vl);
+                vfloat32m4_t vmax67 = vfmax_vv_f32m4(vi6, vi7, vl);
+                vfloat32m4_t vmax018 = vfmax_vv_f32m4(vmax01, vi8, vl);
+
+                vfloat32m4_t vmax2345 = vfmax_vv_f32m4(vmax23, vmax45, vl);
+                vfloat32m4_t vmax01678 = vfmax_vv_f32m4(vmax018, vmax67, vl);
+                vfloat32m4_t vout = vfmax_vv_f32m4(vmax2345, vmax01678, vl);
+                vout = vfmax_vf_f32m4(vout, voutput_min, vl);
+                vout = vfmin_vf_f32m4(vout, voutput_max, vl);
+
+                vse32_v_f32m4(o, vout, vl);
+
+                o += vl;
+                c -= vl;
+            } while (c != 0);
+        }
+        input = (const float**) ((uintptr_t) input + input_increment);
+        output = (float*) ((uintptr_t) o + output_increment);
+    } while (--output_pixels != 0);
+}
+
+void xnn_f32_vhswish_ukernel__rvv_u4v(
+        size_t batch,
+        const float* input,
+        float* output,
+        const union xnn_f32_hswish_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input != NULL);
+    assert(output != NULL);
+
+    const float vsixth = params->scalar.sixth;
+    const float vthree = params->scalar.three;
+    const float vsix = params->scalar.six;
+    const float vzero = 0.0f;
+    assert(vthree == 3.0f);
+    assert(vsix == 6.0f);
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m4(size);
+
+        // 加载输入向量
+        vfloat32m4_t vx = vle32_v_f32m4(input, vl);
+        input += vl;
+
+        vfloat32m4_t vacc = vfadd_vf_f32m4(vx, vthree, vl);
+        vx = vfmul_vf_f32m4(vx, vsixth, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m4(vacc, vzero, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m4(vacc, vsix, vl);
+
+        vacc = vfmul_vv_f32m4(vacc, vx, vl);
+
+        // 存储结果
+        vse32_v_f32m4(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+//u8v
+
+void xnn_f32_maxpool_minmax_ukernel_9p8x__rvv_u8v(
+        size_t output_pixels,
+        size_t kernel_elements,
+        size_t channels,
+        const float** input,
+        size_t input_offset,
+        float* output,
+        size_t input_increment,
+        size_t output_increment,
+        const union xnn_f32_minmax_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(output_pixels != 0);
+    assert(kernel_elements != 0);
+    assert(channels != 0);
+
+    const float voutput_min = params->scalar.min;
+    const float voutput_max = params->scalar.max;
+    do {
+        float* o = output;
+        {
+            const float* i0 = *input++;
+            const float* i1 = *input++;
+            const float* i2 = *input++;
+            const float* i3 = *input++;
+            const float* i4 = *input++;
+            const float* i5 = *input++;
+            const float* i6 = *input++;
+            const float* i7 = *input++;
+            const float* i8 = *input++;
+            i0 = (const float*) ((uintptr_t) i0 + input_offset);
+            i1 = (const float*) ((uintptr_t) i1 + input_offset);
+            i2 = (const float*) ((uintptr_t) i2 + input_offset);
+            i3 = (const float*) ((uintptr_t) i3 + input_offset);
+            i4 = (const float*) ((uintptr_t) i4 + input_offset);
+            i5 = (const float*) ((uintptr_t) i5 + input_offset);
+            i6 = (const float*) ((uintptr_t) i6 + input_offset);
+            i7 = (const float*) ((uintptr_t) i7 + input_offset);
+            i8 = (const float*) ((uintptr_t) i8 + input_offset);
+            if (kernel_elements < 2) {
+                i1 = i0;
+            }
+            if (kernel_elements <= 2) {
+                i2 = i0;
+            }
+            if (kernel_elements < 4) {
+                i3 = i0;
+            }
+            if (kernel_elements <= 4) {
+                i4 = i0;
+            }
+            if (kernel_elements < 6) {
+                i5 = i0;
+            }
+            if (kernel_elements <= 6) {
+                i6 = i0;
+            }
+            if (kernel_elements < 8) {
+                i7 = i0;
+            }
+            if (kernel_elements <= 8) {
+                i8 = i0;
+            }
+
+            size_t c = channels;
+            do {
+                size_t vl = vsetvl_e32m8(c);
+                vfloat32m8_t vi0 = vle32_v_f32m8(i0, vl); i0 += vl;
+                vfloat32m8_t vi1 = vle32_v_f32m8(i1, vl); i1 += vl;
+                vfloat32m8_t vi2 = vle32_v_f32m8(i2, vl); i2 += vl;
+                vfloat32m8_t vi3 = vle32_v_f32m8(i3, vl); i3 += vl;
+                vfloat32m8_t vi4 = vle32_v_f32m8(i4, vl); i4 += vl;
+                vfloat32m8_t vi5 = vle32_v_f32m8(i5, vl); i5 += vl;
+                vfloat32m8_t vi6 = vle32_v_f32m8(i6, vl); i6 += vl;
+                vfloat32m8_t vi7 = vle32_v_f32m8(i7, vl); i7 += vl;
+                vfloat32m8_t vi8 = vle32_v_f32m8(i8, vl); i8 += vl;
+
+                vfloat32m8_t vmax01 = vfmax_vv_f32m8(vi0, vi1, vl);
+                vfloat32m8_t vmax23 = vfmax_vv_f32m8(vi2, vi3, vl);
+                vfloat32m8_t vmax45 = vfmax_vv_f32m8(vi4, vi5, vl);
+                vfloat32m8_t vmax67 = vfmax_vv_f32m8(vi6, vi7, vl);
+                vfloat32m8_t vmax018 = vfmax_vv_f32m8(vmax01, vi8, vl);
+
+                vfloat32m8_t vmax2345 = vfmax_vv_f32m8(vmax23, vmax45, vl);
+                vfloat32m8_t vmax01678 = vfmax_vv_f32m8(vmax018, vmax67, vl);
+                vfloat32m8_t vout = vfmax_vv_f32m8(vmax2345, vmax01678, vl);
+                vout = vfmax_vf_f32m8(vout, voutput_min, vl);
+                vout = vfmin_vf_f32m8(vout, voutput_max, vl);
+
+                vse32_v_f32m8(o, vout, vl);
+
+                o += vl;
+                c -= vl;
+            } while (c != 0);
+        }
+
+        for (ptrdiff_t k = (ptrdiff_t) kernel_elements - 9; k > 0; k -= 8) {
+            const float* i0 = *input++;
+            const float* i1 = *input++;
+            const float* i2 = *input++;
+            const float* i3 = *input++;
+            const float* i4 = *input++;
+            const float* i5 = *input++;
+            const float* i6 = *input++;
+            const float* i7 = *input++;
+            i0 = (const float*) ((uintptr_t) i0 + input_offset);
+            i1 = (const float*) ((uintptr_t) i1 + input_offset);
+            i2 = (const float*) ((uintptr_t) i2 + input_offset);
+            i3 = (const float*) ((uintptr_t) i3 + input_offset);
+            i4 = (const float*) ((uintptr_t) i4 + input_offset);
+            i5 = (const float*) ((uintptr_t) i5 + input_offset);
+            i6 = (const float*) ((uintptr_t) i6 + input_offset);
+            i7 = (const float*) ((uintptr_t) i7 + input_offset);
+            if (k < 2) {
+                i1 = i0;
+            }
+            if (k <= 2) {
+                i2 = i0;
+            }
+            if (k < 4) {
+                i3 = i0;
+            }
+            if (k <= 4) {
+                i4 = i0;
+            }
+            if (k < 6) {
+                i5 = i0;
+            }
+            if (k <= 6) {
+                i6 = i0;
+            }
+            if (k < 8) {
+                i7 = i0;
+            }
+
+            o = output;
+            size_t c = channels;
+            do {
+                size_t vl = vsetvl_e32m8(c);
+                vfloat32m8_t vi0 = vle32_v_f32m8(i0, vl); i0 += vl;
+                vfloat32m8_t vi1 = vle32_v_f32m8(i1, vl); i1 += vl;
+                vfloat32m8_t vi2 = vle32_v_f32m8(i2, vl); i2 += vl;
+                vfloat32m8_t vi3 = vle32_v_f32m8(i3, vl); i3 += vl;
+                vfloat32m8_t vi4 = vle32_v_f32m8(i4, vl); i4 += vl;
+                vfloat32m8_t vi5 = vle32_v_f32m8(i5, vl); i5 += vl;
+                vfloat32m8_t vi6 = vle32_v_f32m8(i6, vl); i6 += vl;
+                vfloat32m8_t vi7 = vle32_v_f32m8(i7, vl); i7 += vl;
+                vfloat32m8_t vi8 = vle32_v_f32m8(o, vl);
+
+                vfloat32m8_t vmax01 = vfmax_vv_f32m8(vi0, vi1, vl);
+                vfloat32m8_t vmax23 = vfmax_vv_f32m8(vi2, vi3, vl);
+                vfloat32m8_t vmax45 = vfmax_vv_f32m8(vi4, vi5, vl);
+                vfloat32m8_t vmax67 = vfmax_vv_f32m8(vi6, vi7, vl);
+                vfloat32m8_t vmax018 = vfmax_vv_f32m8(vmax01, vi8, vl);
+
+                vfloat32m8_t vmax2345 = vfmax_vv_f32m8(vmax23, vmax45, vl);
+                vfloat32m8_t vmax01678 = vfmax_vv_f32m8(vmax018, vmax67, vl);
+                vfloat32m8_t vout = vfmax_vv_f32m8(vmax2345, vmax01678, vl);
+                vout = vfmax_vf_f32m8(vout, voutput_min, vl);
+                vout = vfmin_vf_f32m8(vout, voutput_max, vl);
+
+                vse32_v_f32m8(o, vout, vl);
+
+                o += vl;
+                c -= vl;
+            } while (c != 0);
+        }
+        input = (const float**) ((uintptr_t) input + input_increment);
+        output = (float*) ((uintptr_t) o + output_increment);
+    } while (--output_pixels != 0);
+}
+
+void xnn_f32_vhswish_ukernel__rvv_u8v(
+        size_t batch,
+        const float* input,
+        float* output,
+        const union xnn_f32_hswish_params params[restrict XNN_MIN_ELEMENTS(1)])
+{
+    assert(batch != 0);
+    assert(batch % sizeof(float) == 0);
+    assert(input != NULL);
+    assert(output != NULL);
+
+    const float vsixth = params->scalar.sixth;
+    const float vthree = params->scalar.three;
+    const float vsix = params->scalar.six;
+    const float vzero = 0.0f;
+    assert(vthree == 3.0f);
+    assert(vsix == 6.0f);
+
+    size_t size = batch / sizeof(float);
+    do {
+        // 动态设置向量长度
+        const size_t vl = vsetvl_e32m8(size);
+
+        // 加载输入向量
+        vfloat32m8_t vx = vle32_v_f32m8(input, vl);
+        input += vl;
+
+        vfloat32m8_t vacc = vfadd_vf_f32m8(vx, vthree, vl);
+        vx = vfmul_vf_f32m8(vx, vsixth, vl);
+
+        // 应用最小值约束
+        vacc = vfmax_vf_f32m8(vacc, vzero, vl);
+
+        // 应用最大值约束
+        vacc = vfmin_vf_f32m8(vacc, vsix, vl);
+
+        vacc = vfmul_vv_f32m8(vacc, vx, vl);
+
+        // 存储结果
+        vse32_v_f32m8(output, vacc, vl);
+        output += vl;
+        size -= vl;
+    } while (size > 0);
+}
+
+
 void xnn_f16_gemm_ukernel_1x16__rvv_u2v(
         size_t mr,
         size_t nc,
@@ -3341,6 +7712,8 @@ void xnn_f16_igemm_ukernel_1x16__rvv_u2v(
         nc -= vl;
     } while (nc != 0);
 }
+
+
 
 void xnn_f16_igemm_ukernel_4x16__rvv_u2v(
         size_t mr,
