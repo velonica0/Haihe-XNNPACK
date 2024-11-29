@@ -3755,68 +3755,6 @@ void xnn_f32_igemm_ukernel_1x16__rvv_u2v(
 
 
 
-void xnn_f32_igemm_ukernel_1x32__rvv_u8v(
-        size_t mr,
-        size_t nc,
-        size_t kc,
-        size_t ks,
-        const float** restrict a,
-        const float* restrict w,
-        float* restrict c,
-        size_t cm_stride,
-        size_t cn_stride,
-        size_t a_offset,
-        const float* zero,
-        const union xnn_f32_default_params params[restrict XNN_MIN_ELEMENTS(1)])
-{
-     assert(mr != 0);
-    assert(mr <= 1);
-    assert(nc != 0);
-    assert(kc != 0);
-    assert(kc % sizeof(float) == 0);
-    assert(ks != 0);
-    assert(ks % (1 * sizeof(void*)) == 0);
-    assert(a_offset % sizeof(float) == 0);
-    assert(a != NULL);
-    assert(w != NULL);
-    assert(c != NULL);
-
-    float* c0 = c;
-
-    do {
-        size_t vl = vsetvl_e32m8(nc); // vector length
-        vfloat32m8_t vacc0 = vle32_v_f32m8(w, 32); // 1st row count
-        w += 32;
-
-        size_t p = ks;
-        size_t kcl = kc / sizeof(float);
-
-        do {
-             const float* restrict a0 = a[0];
-            assert(a0 != NULL);
-            if XNN_UNPREDICTABLE(a0 != zero) {
-                a0 = (const float*) ((uintptr_t) a0 + a_offset);
-            }
-            a += 1;
-
-            size_t k = kc;
-            for(size_t k = 0; k < kcl ; k++){
-                vfloat32m8_t vw = vle32_v_f32m8(w, 32);
-                w += 32;
-                vacc0 = vfmacc_vf_f32m8(vacc0, *a0, vw, 32); // update 1st row count
-                a0++;
-            }
-            p -= 1 * sizeof(void*);
-        } while (p != 0);
-        vse32_v_f32m8(c0, vacc0, vl); // store 1st row result
-
-        if XNN_LIKELY(nc >= 4) {
-            c0 = (float*) ((uintptr_t) c0 + cn_stride);
-            a = (const float**restrict) ((uintptr_t) a - ks);
-        }
-        nc -= vl;
-    } while (nc != 0);
-}
 
 void xnn_f32_igemm_ukernel_4x32__rvv_u8v(
     size_t mr,
@@ -5604,7 +5542,7 @@ void xnn_f32_igemm_ukernel_1x32__rvv_u8v(
 
             size_t k = kc;
             for(size_t k = 0; k < kcl ; k++){
-                vfloat32m2_t vw = vle32_v_f32m8(w, 32);
+                vfloat32m8_t vw = vle32_v_f32m8(w, 32);
                 w += 32;
                 vacc0 = vfmacc_vf_f32m8(vacc0, *a0, vw, 32); // update 1st row count
                 a0++;
